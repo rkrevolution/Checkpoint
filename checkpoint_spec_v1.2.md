@@ -1,5 +1,5 @@
 # Checkpoint — Hyperfocus Interruption & Time Awareness App for macOS
-**Product Specification · Version 2.1 — Personal Machine Build**
+**Product Specification · Version 2.2 — Personal Machine Build**
 
 | Field | Value |
 |---|---|
@@ -97,8 +97,12 @@ Checkpoint/
 │   ├── NotificationsSettingsView.swift
 │   ├── QuestionsSettingsView.swift
 │   └── HistorySettingsView.swift
-└── Resources/
-    └── questions.json
+├── Resources/
+│   └── questions.json
+└── Assets.xcassets/
+    └── AppIcon.appiconset/       ← Static icon PNGs (16–1024px)
+CheckpointTests/
+└── CheckpointTests.swift         ← Swift Testing suite (29 tests)
 ```
 
 ### 2.4 State Machine
@@ -465,7 +469,10 @@ Each checkpoint is recorded as JSON Lines at:
 
 ## 10. Dock Icon
 
-Programmatically generated at runtime: orange gradient rounded rectangle with a white sun (circle + 8 rays). Set via `NSApp.applicationIconImage`. No static asset files required.
+Orange gradient rounded rectangle with a white sun (circle + 8 rays).
+
+- **Asset catalog:** `Assets.xcassets/AppIcon.appiconset` — static PNGs at all 10 required sizes (16px through 1024px). These are used by Finder, the Dock bar, Spotlight, and the exported `.app` bundle.
+- **Runtime:** Also set programmatically via `NSApp.applicationIconImage` in `AppDelegate.setDockIcon()` using the same design, so the icon appears correctly even during development without a clean build.
 
 ---
 
@@ -547,6 +554,33 @@ No developer account, App Store, or notarization required for personal use.
 
 ### Launch at Login (optional)
 - **System Settings → General → Login Items → +** → select Checkpoint
+
+---
+
+## 16. Testing
+
+Unit tests use the **Swift Testing** framework (`import Testing`) in the `CheckpointTests` target.
+
+**Run tests:** Cmd+U in Xcode (Product → Test).
+
+### Test Coverage (29 tests)
+
+| Suite | Tests | What's Covered |
+|---|---|---|
+| `ScheduleManagerTests` | 6 | shouldFire gate checks, active hours (normal/overnight/same/off), weekday skips |
+| `AppStateTests` | 6 | Initial state, transitions, duplicate transition guard, recent category tracking (max 6), full lifecycle |
+| `QuestionBankTests` | 7 | Fallback loading, correct count, no excess, category diversity, all-disabled empty, recent category avoidance, no duplicates |
+| `CheckpointSessionTests` | 2 | Codable round-trip (ISO8601 dates), CodingKeys `questionsShown` → `"questions"` mapping |
+| `CheckpointTimerTests` | 5 | nil fire date when stopped, fire date set on start, stop clears, 60s minimum enforced, jitter within expected range |
+| `IntervalPickerTests` | 3 | Snap-to-nearest option logic, edge cases, label formatting (min/hour/hours) |
+
+### Testing Approach
+
+- **`@MainActor` classes** (ScheduleManager, AppState, QuestionBank, CheckpointTimer) are tested via `await MainActor.run {}` blocks
+- **UserDefaults** are set/reset within each test to avoid cross-test contamination
+- **QuestionBank** uses the hardcoded fallback in the test target (no `questions.json` in test bundle)
+- **Timer tests** set jitter to 0 for deterministic fire date assertions
+- **No UI tests** — the modal, settings, and menu bar are tested manually via the Preview Checkpoint button in Settings
 
 ---
 

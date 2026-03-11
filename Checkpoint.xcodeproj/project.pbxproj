@@ -6,11 +6,27 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		DB83A90C2F6232A1005FBAA8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DBE6534C2F61DFA0000296B5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DBE653532F61DFA1000296B5;
+			remoteInfo = Checkpoint;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		DB83A9082F6232A1005FBAA8 /* CheckpointTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CheckpointTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DBE653542F61DFA1000296B5 /* Checkpoint.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Checkpoint.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		DB83A9092F6232A1005FBAA8 /* CheckpointTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CheckpointTests;
+			sourceTree = "<group>";
+		};
 		DBE653562F61DFA1000296B5 /* Checkpoint */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Checkpoint;
@@ -19,6 +35,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		DB83A9052F6232A1005FBAA8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DBE653512F61DFA1000296B5 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				DBE653562F61DFA1000296B5 /* Checkpoint */,
+				DB83A9092F6232A1005FBAA8 /* CheckpointTests */,
 				DBE653552F61DFA1000296B5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				DBE653542F61DFA1000296B5 /* Checkpoint.app */,
+				DB83A9082F6232A1005FBAA8 /* CheckpointTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +73,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		DB83A9072F6232A1005FBAA8 /* CheckpointTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DB83A9102F6232A1005FBAA8 /* Build configuration list for PBXNativeTarget "CheckpointTests" */;
+			buildPhases = (
+				DB83A9042F6232A1005FBAA8 /* Sources */,
+				DB83A9052F6232A1005FBAA8 /* Frameworks */,
+				DB83A9062F6232A1005FBAA8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DB83A90D2F6232A1005FBAA8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				DB83A9092F6232A1005FBAA8 /* CheckpointTests */,
+			);
+			name = CheckpointTests;
+			packageProductDependencies = (
+			);
+			productName = CheckpointTests;
+			productReference = DB83A9082F6232A1005FBAA8 /* CheckpointTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		DBE653532F61DFA1000296B5 /* Checkpoint */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DBE6535F2F61DFA7000296B5 /* Build configuration list for PBXNativeTarget "Checkpoint" */;
@@ -80,6 +128,10 @@
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					DB83A9072F6232A1005FBAA8 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = DBE653532F61DFA1000296B5;
+					};
 					DBE653532F61DFA1000296B5 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -100,11 +152,19 @@
 			projectRoot = "";
 			targets = (
 				DBE653532F61DFA1000296B5 /* Checkpoint */,
+				DB83A9072F6232A1005FBAA8 /* CheckpointTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		DB83A9062F6232A1005FBAA8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DBE653522F61DFA1000296B5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +175,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		DB83A9042F6232A1005FBAA8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DBE653502F61DFA1000296B5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +191,53 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		DB83A90D2F6232A1005FBAA8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DBE653532F61DFA1000296B5 /* Checkpoint */;
+			targetProxy = DB83A90C2F6232A1005FBAA8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		DB83A90E2F6232A1005FBAA8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = RkRev.CheckpointTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Checkpoint.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Checkpoint";
+			};
+			name = Debug;
+		};
+		DB83A90F2F6232A1005FBAA8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = RkRev.CheckpointTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Checkpoint.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Checkpoint";
+			};
+			name = Release;
+		};
 		DBE6535D2F61DFA7000296B5 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -304,6 +417,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		DB83A9102F6232A1005FBAA8 /* Build configuration list for PBXNativeTarget "CheckpointTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DB83A90E2F6232A1005FBAA8 /* Debug */,
+				DB83A90F2F6232A1005FBAA8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		DBE6534F2F61DFA0000296B5 /* Build configuration list for PBXProject "Checkpoint" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
