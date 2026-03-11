@@ -1,0 +1,68 @@
+{
+  "version": 3,
+  "categories": [
+    {
+      "id": "alignment",
+      "name": "Alignment & Priority",
+      "questions": [
+        { "id": "a1", "text": "Is this still the best use of my time right now?" },
+        { "id": "a2", "text": "What am I actually trying to accomplish right now?" },
+        { "id": "a3", "text": "Is what I'm doing connected to what I set out to do today?" },
+        { "id": "a4", "text": "If I had to justify the last 45 minutes, could I?" },
+        { "id": "a5", "text": "Am I working on this because it matters, or because it's interesting?" }
+      ]
+    },
+    {
+      "id": "scope",
+      "name": "Scope & Depth",
+      "questions": [
+        { "id": "b1", "text": "Is it still reasonable for me to be spending time here?" },
+        { "id": "b2", "text": "Have I gone deeper than this actually needs?" },
+        { "id": "b3", "text": "Is there a simpler way to get to the same result?" },
+        { "id": "b4", "text": "What would 'good enough' look like right now?" },
+        { "id": "b5", "text": "Is this more detailed than the situation calls for?" }
+      ]
+    },
+    {
+      "id": "progress",
+      "name": "Progress",
+      "questions": [
+        { "id": "c1", "text": "What have I actually accomplished in the last interval?" },
+        { "id": "c2", "text": "Could I explain what I just did in two sentences?" },
+        { "id": "c3", "text": "How does what I've done fit into the bigger picture?" },
+        { "id": "c4", "text": "What's the next thing that actually needs to happen?" },
+        { "id": "c5", "text": "Am I making progress, or am I going in circles?" }
+      ]
+    },
+    {
+      "id": "time",
+      "name": "Time Awareness",
+      "questions": [
+        { "id": "d1", "text": "How much time do I have left today for what matters most?" },
+        { "id": "d2", "text": "What's coming up next that I should be aware of?" },
+        { "id": "d3", "text": "Do I still have a clear picture of what I'm working toward?" },
+        { "id": "d4", "text": "If I keep going at this pace, will I finish when I need to?" }
+      ]
+    },
+    {
+      "id": "body",
+      "name": "Body & Energy",
+      "questions": [
+        { "id": "h1", "text": "Have I eaten, had water, or moved recently?" },
+        { "id": "h2", "text": "Am I noticing any tension, discomfort, or fatigue?" },
+        { "id": "h3", "text": "When did I last stand up?" },
+        { "id": "h4", "text": "Can I sustain this energy for another interval?" }
+      ]
+    },
+    {
+      "id": "mindfulness",
+      "name": "Mindfulness & Reset",
+      "questions": [
+        { "id": "f1", "text": "Would a short break help me right now?" },
+        { "id": "f2", "text": "Is there anything I should write down before I forget?" },
+        { "id": "f3", "text": "What's one thing I want to have done by the next checkpoint?" },
+        { "id": "f4", "text": "Am I choosing what to focus on, or is it choosing me?" }
+      ]
+    }
+  ]
+}

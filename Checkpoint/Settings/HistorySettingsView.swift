@@ -1,0 +1,174 @@
+import AppKit
+import SwiftUI
+import UniformTypeIdentifiers
+
+struct HistorySettingsView: View {
+    @State private var sessions: [CheckpointSession] = []
+    @State private var filterOutcome: CheckpointSession.Outcome?
+    @State private var showingClearConfirmation = false
+
+    @AppStorage("logResponses") private var logResponses = true
+
+    private let responseLog = ResponseLog()
+    private let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
+
+    private var filteredSessions: [CheckpointSession] {
+        let sorted = sessions.sorted { $0.timestamp > $1.timestamp }
+        if let filter = filterOutcome {
+            return sorted.filter { $0.outcome == filter }
+        }
+        return sorted
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Controls
+            HStack {
+                Toggle("Log responses", isOn: $logResponses)
+
+                Spacer()
+
+                Picker("Filter", selection: $filterOutcome) {
+                    Text("All").tag(nil as CheckpointSession.Outcome?)
+                    Text("Completed").tag(CheckpointSession.Outcome.completed as CheckpointSession.Outcome?)
+                    Text("Snoozed").tag(CheckpointSession.Outcome.snoozed as CheckpointSession.Outcome?)
+                }
+                .frame(width: 150)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+
+            Divider()
+
+            // Session list
+            if filteredSessions.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No checkpoint history yet.")
+                        .foregroundStyle(.secondary)
+                    Text("Sessions will appear here after your first check-in.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                List(filteredSessions) { session in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(dateFormatter.string(from: session.timestamp))
+                                .font(.subheadline.weight(.medium))
+                            Spacer()
+                            Text(outcomeLabel(session.outcome))
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(outcomeColor(session.outcome).opacity(0.15), in: Capsule())
+                                .foregroundStyle(outcomeColor(session.outcome))
+                        }
+
+                        ForEach(Array(zip(session.questionsShown, session.responses)), id: \.0.id) { question, response in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(question.text)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if !response.text.isEmpty {
+                                    Text(response.text)
+                                        .font(.caption)
+                                        .foregroundStyle(.primary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+
+            Divider()
+
+            // Bottom bar
+            HStack {
+                Button("Export JSON") {
+                    exportJSON()
+                }
+
+                Button("Export CSV") {
+                    exportCSV()
+                }
+
+                Spacer()
+
+                Button("Clear History") {
+                    showingClearConfirmation = true
+                }
+                .foregroundStyle(.red)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            sessions = (try? responseLog.loadAll()) ?? []
+        }
+        .alert("Clear All History?", isPresented: $showingClearConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear", role: .destructive) {
+                try? responseLog.deleteAll()
+                sessions = []
+            }
+        } message: {
+            Text("This will permanently delete all checkpoint history. This cannot be undone.")
+        }
+    }
+
+    private func outcomeLabel(_ outcome: CheckpointSession.Outcome) -> String {
+        switch outcome {
+        case .completed: return "Completed"
+        case .snoozed: return "Snoozed"
+        }
+    }
+
+    private func outcomeColor(_ outcome: CheckpointSession.Outcome) -> Color {
+        switch outcome {
+        case .completed: return .green
+        case .snoozed: return .blue
+        }
+    }
+
+    private func exportJSON() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "checkpoint-history.json"
+        panel.begin { result in
+            guard result == .OK, let url = panel.url else { return }
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            if let data = try? encoder.encode(sessions) {
+                try? data.write(to: url)
+            }
+        }
+    }
+
+    private func exportCSV() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = "checkpoint-history.csv"
+        panel.begin { result in
+            guard result == .OK, let url = panel.url else { return }
+            var csv = "timestamp,outcome,questions,responses\n"
+            for session in sessions {
+                let ts = ISO8601DateFormatter().string(from: session.timestamp)
+                let qs = session.questionsShown.map(\.text).joined(separator: "; ")
+                let rs = session.responses.map(\.text).joined(separator: "; ")
+                csv += "\"\(ts)\",\"\(session.outcome.rawValue)\",\"\(qs)\",\"\(rs)\"\n"
+            }
+            try? csv.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+}
