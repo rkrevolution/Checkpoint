@@ -8,9 +8,10 @@ struct NotificationsSettingsView: View {
     @AppStorage("maxSnoozesPerCheckpoint") private var maxSnoozes = 2
     @AppStorage("afterMaxSnoozeAction") private var afterMaxSnooze = "autoDismiss"
     @AppStorage("respectFocusMode") private var respectFocusMode = true
-    @AppStorage("suppressInFullScreen") private var suppressInFullScreen = true
+
     @AppStorage("jitterRange") private var jitterRange = 600
     @AppStorage("showBreathingCue") private var showBreathingCue = false
+    @AppStorage("fullScreenCheckpoint") private var fullScreenCheckpoint = false
 
     private let systemSounds = ["Glass", "Ping", "Pop", "Purr", "Sosumi", "Tink"]
 
@@ -77,19 +78,19 @@ struct NotificationsSettingsView: View {
                 }
             }
 
-            Section("Breathing Cue") {
+            Section("Attention") {
+                Toggle("Full-screen overlay on check-in", isOn: $fullScreenCheckpoint)
+                Text("Dims and blurs everything behind the checkpoint to break hyperfocus.")
+                    .font(.caption).foregroundStyle(.secondary)
+
                 Toggle("Show breathing circle on check-in", isOn: $showBreathingCue)
                 Text("A gentle pulsing circle to help you pause and take a breath.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Focus & Full-Screen") {
+            Section("Focus") {
                 Toggle("Respect macOS Focus / Do Not Disturb", isOn: $respectFocusMode)
                 Text("Pauses checkpoints during any active Focus mode.")
-                    .font(.caption).foregroundStyle(.secondary)
-
-                Toggle("Suppress during full-screen apps", isOn: $suppressInFullScreen)
-                Text("Delays checkpoint until you exit full-screen.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

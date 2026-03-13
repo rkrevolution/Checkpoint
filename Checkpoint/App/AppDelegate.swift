@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import os.log
+import ServiceManagement
 
 private let log = Logger(subsystem: "com.rkrev.checkpoint", category: "AppDelegate")
 
@@ -29,7 +30,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hasShownDaySummary = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        log.notice("applicationDidFinishLaunching")
+        let loginStatus = SMAppService.mainApp.status
+        log.notice("applicationDidFinishLaunching — loginItem=\(loginStatus.rawValue == 1 ? "enabled" : "not enabled") (status=\(loginStatus.rawValue))")
 
         // Register all UserDefaults
         UserDefaults.standard.register(defaults: [
@@ -46,11 +48,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "playSoundOnCheckpoint": true,
             "soundName": "Glass",
             "respectFocusMode": true,
-            "suppressInFullScreen": true,
             "logResponses": true,
             "skipWeekdays": [Int](),
             "disabledQuestionIDs": [String](),
             "showBreathingCue": false,
+            "fullScreenCheckpoint": false,
         ])
 
         // 1. Give QuestionBank access to custom questions
@@ -78,16 +80,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sic.setup()
         statusItemController = sic
 
-        // 6. Observe UserDefaults changes to restart timer when interval changes
+        // 6. Observe sleep/wake to pause and resume the timer
+        let wsnc = NSWorkspace.shared.notificationCenter
+        wsnc.addObserver(self, selector: #selector(handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
+        wsnc.addObserver(self, selector: #selector(handleWake), name: NSWorkspace.didWakeNotification, object: nil)
+
+        // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
 
-        // 7. Observe AppState changes
+        // 8. Observe AppState changes
         appState.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.syncDockMenu() }
             .store(in: &cancellables)
 
-        // 8. First launch: show welcome. Otherwise: start timer immediately.
+        // 9. First launch: show welcome. Otherwise: start timer immediately.
         let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
         log.notice("hasLaunchedBefore=\(hasLaunchedBefore)")
         if hasLaunchedBefore {
@@ -134,10 +141,60 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         checkpointTimer = timer
     }
 
+    // MARK: - Sleep / Wake
+
+    @objc private func handleSleep(_ notification: Notification) {
+        log.notice("━━━ SYSTEM SLEEP ━━━")
+        checkpointTimer?.stop()
+        snoozeTimer?.cancel()
+        snoozeTimer = nil
+    }
+
+    @objc private func handleWake(_ notification: Notification) {
+        log.notice("━━━ SYSTEM WAKE ━━━")
+        log.notice("  State on wake: \(String(describing: self.appState.state))")
+
+        // If user had manually paused, respect that
+        if appState.state == .paused {
+            log.notice("  User was paused before sleep, staying paused")
+            return
+        }
+
+        // Dismiss any stale checkpoint window
+        if appState.state == .presenting || appState.state == .triggered {
+            log.notice("  Dismissing stale checkpoint window")
+            windowController?.close()
+            windowController = nil
+        }
+
+        // Cancel any stale snooze
+        snoozeTimer?.cancel()
+        snoozeTimer = nil
+
+        // Restart fresh
+        appState.transition(to: .idle)
+        let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
+        let effectiveInterval = interval > 0 ? interval : 2700
+        checkpointTimer?.restart(interval: effectiveInterval)
+        log.notice("  Timer restarted with interval \(Int(effectiveInterval))s")
+    }
+
     // MARK: - Timer Fire
+
+    private func resetDayCountersIfNeeded() {
+        let today = Calendar.current.startOfDay(for: Date())
+        if let lastDate = lastCheckpointDate, Calendar.current.startOfDay(for: lastDate) != today {
+            todayCheckpointCount = 0
+            todayObjectives = []
+            hasShownDaySummary = false
+        }
+    }
 
     private func handleTimerFire() {
         log.notice("handleTimerFire: currentState=\(String(describing: self.appState.state))")
+
+        // Reset daily counters on day boundary regardless of whether checkpoint fires
+        resetDayCountersIfNeeded()
 
         // Recover from outsideHours when hours become active again
         if appState.state == .outsideHours, scheduleManager.isWithinActiveHours() {
@@ -193,10 +250,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             recentCategoryIds: appState.recentCategoryIds
         )
 
+        let actualElapsed: Int
+        if let last = lastCheckpointDate {
+            actualElapsed = Int(Date().timeIntervalSince(last))
+        } else {
+            actualElapsed = interval > 0 ? interval : 2700
+        }
+
         let session = CheckpointSession(
             id: UUID(),
             timestamp: Date(),
-            intervalSeconds: interval > 0 ? interval : 2700,
+            intervalSeconds: actualElapsed,
             questionsShown: questions,
             responses: questions.map { QuestionResponse(questionId: $0.id, text: "") },
             outcome: .completed
@@ -205,12 +269,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.recordShownCategories(questions.map(\.categoryId))
 
         // Track daily checkpoint count and objectives
-        let today = Calendar.current.startOfDay(for: Date())
-        if let lastDate = lastCheckpointDate, Calendar.current.startOfDay(for: lastDate) != today {
-            todayCheckpointCount = 0
-            todayObjectives = []
-            hasShownDaySummary = false
-        }
         todayCheckpointCount += 1
         lastCheckpointDate = Date()
 

@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import SwiftUI
 
 struct GeneralSettingsView: View {
@@ -9,12 +10,32 @@ struct GeneralSettingsView: View {
     @AppStorage("useActiveHours") private var useActiveHours = false
     @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
 
+    @State private var launchAtLogin = false
     @State private var previewController: CheckpointWindowController?
 
     private let intervalOptions = [1, 2, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120]
 
     var body: some View {
         Form {
+            Section {
+                Toggle("Start at Login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            // Revert toggle on failure
+                            launchAtLogin = !newValue
+                        }
+                    }
+                Text("Automatically start Checkpoint when you log in to your Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Toggle("Enable Checkpoints", isOn: $checkpointsEnabled)
             }
@@ -83,6 +104,8 @@ struct GeneralSettingsView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+
             // Snap to nearest option if current value isn't in the list
             let currentMins = intervalSeconds / 60
             if !intervalOptions.contains(currentMins) {
@@ -136,4 +159,9 @@ struct GeneralSettingsView: View {
         let date = Calendar.current.date(from: components) ?? Date()
         return formatter.string(from: date)
     }
+}
+
+#Preview {
+    GeneralSettingsView()
+        .frame(width: 520, height: 480)
 }

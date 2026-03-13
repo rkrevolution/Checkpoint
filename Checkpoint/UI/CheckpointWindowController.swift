@@ -7,6 +7,7 @@ final class CheckpointWindowController: NSWindowController {
     private var onSnooze: (() -> Void)?
     private var session: CheckpointSession
     private var dismissed = false
+    private var overlayWindows: [NSWindow] = []
 
     init(
         session: CheckpointSession,
@@ -72,6 +73,12 @@ final class CheckpointWindowController: NSWindowController {
 
     func showWithFade() {
         guard let window else { return }
+
+        let fullScreen = UserDefaults.standard.bool(forKey: "fullScreenCheckpoint")
+        if fullScreen {
+            showOverlays()
+        }
+
         window.alphaValue = 0
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
@@ -80,6 +87,66 @@ final class CheckpointWindowController: NSWindowController {
             context.duration = 0.25
             window.animator().alphaValue = 1
         }
+    }
+
+    // MARK: - Full-Screen Overlay
+
+    private func showOverlays() {
+        for screen in NSScreen.screens {
+            let overlay = NSWindow(
+                contentRect: screen.frame,
+                styleMask: .borderless,
+                backing: .buffered,
+                defer: false
+            )
+            overlay.isReleasedWhenClosed = false
+            overlay.level = .screenSaver - 1  // just below the checkpoint card
+            overlay.backgroundColor = .clear
+            overlay.isOpaque = false
+            overlay.ignoresMouseEvents = true
+            overlay.collectionBehavior = [.canJoinAllSpaces, .stationary]
+
+            let blur = NSVisualEffectView(frame: screen.frame)
+            blur.material = .fullScreenUI
+            blur.blendingMode = .behindWindow
+            blur.state = .active
+
+            // Dark tint over the blur
+            let tint = NSView(frame: screen.frame)
+            tint.wantsLayer = true
+            tint.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
+            blur.addSubview(tint)
+
+            overlay.contentView = blur
+            overlay.alphaValue = 0
+            overlay.orderFrontRegardless()
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.3
+                overlay.animator().alphaValue = 1
+            }
+
+            overlayWindows.append(overlay)
+        }
+    }
+
+    private func dismissOverlays(completion: @escaping () -> Void) {
+        guard !overlayWindows.isEmpty else {
+            completion()
+            return
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            for overlay in overlayWindows {
+                overlay.animator().alphaValue = 0
+            }
+        }, completionHandler: { [weak self] in
+            for overlay in self?.overlayWindows ?? [] {
+                overlay.close()
+            }
+            self?.overlayWindows.removeAll()
+            completion()
+        })
     }
 
     private func dismissModal(with session: CheckpointSession, updatedObjective: String?) {
@@ -91,7 +158,9 @@ final class CheckpointWindowController: NSWindowController {
             window.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             window.close()
-            self?.onDone?(session, updatedObjective)
+            self?.dismissOverlays {
+                self?.onDone?(session, updatedObjective)
+            }
         })
     }
 
@@ -104,7 +173,9 @@ final class CheckpointWindowController: NSWindowController {
             window.animator().alphaValue = 0
         }, completionHandler: { [weak self] in
             window.close()
-            self?.onSnooze?()
+            self?.dismissOverlays {
+                self?.onSnooze?()
+            }
         })
     }
 }

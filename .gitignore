@@ -13,3 +13,9 @@ xcuserdata/
 
 # Archives
 *.xcarchive
+
+# Claude Code
+.claude/
+
+# Xcode snapshots
+Checkpoint 2026-*/

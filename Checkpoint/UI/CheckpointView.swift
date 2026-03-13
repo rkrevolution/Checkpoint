@@ -216,3 +216,27 @@ struct CheckpointView: View {
         return updated
     }
 }
+
+#Preview {
+    let question = Question(
+        id: "preview",
+        text: "What were you doing just before this appeared?",
+        isEnabled: true,
+        isCustom: false,
+        categoryId: "awareness"
+    )
+    let session = CheckpointSession(
+        id: UUID(),
+        timestamp: Date(),
+        intervalSeconds: 2700,
+        questionsShown: [question],
+        responses: [QuestionResponse(questionId: "preview", text: "")],
+        outcome: .completed
+    )
+    CheckpointView(
+        session: session,
+        currentObjective: "Finish the settings migration",
+        nextCheckpointEstimate: "~45 min",
+        checkpointNumber: 3
+    )
+}

@@ -155,6 +155,13 @@ struct HistorySettingsView: View {
         }
     }
 
+    // For previews: inject sample data
+    init(previewSessions: [CheckpointSession]? = nil) {
+        if let previewSessions {
+            _sessions = State(initialValue: previewSessions)
+        }
+    }
+
     private func exportCSV() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.commaSeparatedText]
@@ -171,4 +178,35 @@ struct HistorySettingsView: View {
             try? csv.write(to: url, atomically: true, encoding: .utf8)
         }
     }
+}
+
+#Preview {
+    let sampleSessions: [CheckpointSession] = [
+        CheckpointSession(
+            id: UUID(),
+            timestamp: Date(),
+            intervalSeconds: 2700,
+            questionsShown: [Question(id: "q1", text: "What were you doing just before this appeared?", isEnabled: true, isCustom: false, categoryId: "awareness")],
+            responses: [QuestionResponse(questionId: "q1", text: "")],
+            outcome: .completed
+        ),
+        CheckpointSession(
+            id: UUID(),
+            timestamp: Date().addingTimeInterval(-3600),
+            intervalSeconds: 2700,
+            questionsShown: [Question(id: "q2", text: "Are you still working on what you intended?", isEnabled: true, isCustom: false, categoryId: "focus")],
+            responses: [QuestionResponse(questionId: "q2", text: "")],
+            outcome: .snoozed
+        ),
+        CheckpointSession(
+            id: UUID(),
+            timestamp: Date().addingTimeInterval(-7200),
+            intervalSeconds: 1800,
+            questionsShown: [Question(id: "q3", text: "When did you last stand up or stretch?", isEnabled: true, isCustom: false, categoryId: "body")],
+            responses: [QuestionResponse(questionId: "q3", text: "")],
+            outcome: .completed
+        ),
+    ]
+    HistorySettingsView(previewSessions: sampleSessions)
+        .frame(width: 520, height: 480)
 }

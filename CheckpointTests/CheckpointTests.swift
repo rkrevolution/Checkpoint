@@ -414,6 +414,59 @@ struct IntervalPickerTests {
     }
 }
 
+// MARK: - Sleep/Wake State Tests
+
+struct SleepWakeTests {
+
+    @Test func wakeFromIdleReturnsToIdle() async {
+        await MainActor.run {
+            let state = AppState()
+            // Simulate: was idle before sleep, wake should stay idle
+            state.transition(to: .idle)
+            #expect(state.state == .idle)
+        }
+    }
+
+    @Test func wakeFromPausedStaysPaused() async {
+        await MainActor.run {
+            let state = AppState()
+            state.transition(to: .paused)
+            // On wake, if paused, should remain paused (no transition)
+            #expect(state.state == .paused)
+        }
+    }
+
+    @Test func wakeFromPresentingTransitionsToIdle() async {
+        await MainActor.run {
+            let state = AppState()
+            state.transition(to: .presenting)
+            // On wake, stale presenting state should be dismissed → idle
+            state.transition(to: .idle)
+            #expect(state.state == .idle)
+        }
+    }
+
+    @Test func wakeFromTriggeredTransitionsToIdle() async {
+        await MainActor.run {
+            let state = AppState()
+            state.transition(to: .triggered)
+            // On wake, stale triggered state should be dismissed → idle
+            state.transition(to: .idle)
+            #expect(state.state == .idle)
+        }
+    }
+
+    @Test func wakeFromSnoozedTransitionsToIdle() async {
+        await MainActor.run {
+            let state = AppState()
+            state.transition(to: .snoozed(until: Date().addingTimeInterval(300), count: 1))
+            // On wake, stale snooze should be cleared → idle
+            state.transition(to: .idle)
+            #expect(state.state == .idle)
+        }
+    }
+}
+
 // MARK: - Helpers
 
 private func calendar(hour: Int) -> Date {

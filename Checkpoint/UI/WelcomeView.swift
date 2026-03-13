@@ -68,7 +68,7 @@ struct WelcomeView: View {
             // How it works
             VStack(alignment: .leading, spacing: 8) {
                 Label("A prompt appears showing the current time and a grounding question", systemImage: "clock")
-                Label("Tap \"I'm on track\" to acknowledge, or \"In Flow\" if you're intentionally deep in work", systemImage: "checkmark.circle")
+                Label("Tap \"Got it\" to acknowledge and return to work", systemImage: "checkmark.circle")
                 Label("Tap \"Not now\" to snooze for a few minutes", systemImage: "clock.arrow.circlepath")
                 Label("Look for the sun icon in your menu bar for a countdown to the next check-in", systemImage: "sun.max.fill")
             }
@@ -99,4 +99,8 @@ struct WelcomeView: View {
         .padding(32)
         .frame(width: 480, height: 520)
     }
+}
+
+#Preview {
+    WelcomeView(onGetStarted: { _ in })
 }
