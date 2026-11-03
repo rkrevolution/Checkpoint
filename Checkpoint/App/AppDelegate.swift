@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import os.log
 import ServiceManagement
@@ -19,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let parkedThoughts = ParkedThoughts(
         defaults: AppDelegate.dataDefaults, url: AppDelegate.dataURL("parked.jsonl"))
     private var heartbeatTimer: Timer?
+    private var pauseHotKey: GlobalHotKey?
     /// True while no keyboard or mouse input for `idleThreshold` (counted as away for time on objective)
     private var isIdle = false
     private static let idleThreshold: TimeInterval = 5 * 60
@@ -138,6 +140,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         observeDebugCommands()
         #endif
+
+        // ⌃⌥⌘P pauses or resumes from any app (#15)
+        pauseHotKey = GlobalHotKey(
+            keyCode: kVK_ANSI_P, modifiers: controlKey | optionKey | cmdKey
+        ) { [weak self] in
+            self?.togglePause()
+        }
 
         // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
@@ -793,6 +802,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
 
         return menu
+    }
+
+    /// Global shortcut: pause (dismissing any open card) or resume.
+    private func togglePause() {
+        if appState.state == .paused {
+            log.notice("Shortcut: resume")
+            resumeCheckpoints()
+        } else {
+            log.notice("Shortcut: pause")
+            windowController?.dismissImmediately()
+            windowController = nil
+            pauseCheckpoints()
+        }
     }
 
     @objc private func pauseCheckpoints() {

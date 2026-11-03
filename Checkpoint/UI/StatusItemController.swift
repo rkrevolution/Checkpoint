@@ -176,11 +176,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         default:
             menu.addItem(action("Check In Now", #selector(AppDelegate.triggerNow), app))
         }
-        if state == .paused {
-            menu.addItem(action("Resume Checkpoints", #selector(AppDelegate.resumeFromMenu), app))
-        } else {
-            menu.addItem(action("Pause Checkpoints", #selector(AppDelegate.pauseFromMenu), app))
-        }
+        // Shows the global ⌃⌥⌘P shortcut (#15)
+        let pause = state == .paused
+            ? action("Resume Checkpoints", #selector(AppDelegate.resumeFromMenu), app)
+            : action("Pause Checkpoints", #selector(AppDelegate.pauseFromMenu), app)
+        pause.keyEquivalent = "p"
+        pause.keyEquivalentModifierMask = [.control, .option, .command]
+        menu.addItem(pause)
         menu.addItem(.separator())
 
         let prefs = action("Preferences…", #selector(AppDelegate.openPreferences), app)
