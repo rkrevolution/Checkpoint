@@ -29,7 +29,10 @@ final class CheckpointWindowController: NSWindowController {
         )
         window.title = "Checkpoint"
         window.isReleasedWhenClosed = false
-        window.level = .screenSaver  // above everything, even full-screen
+        // Above apps, the Dock and full-screen windows — but below the screensaver
+        // and lock screen, which must always win.
+        window.level = .statusBar
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.center()
         window.isMovableByWindowBackground = true
 
@@ -100,11 +103,11 @@ final class CheckpointWindowController: NSWindowController {
                 defer: false
             )
             overlay.isReleasedWhenClosed = false
-            overlay.level = .screenSaver - 1  // just below the checkpoint card
+            overlay.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)  // just below the checkpoint card
             overlay.backgroundColor = .clear
             overlay.isOpaque = false
             overlay.ignoresMouseEvents = true
-            overlay.collectionBehavior = [.canJoinAllSpaces, .stationary]
+            overlay.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
             let blur = NSVisualEffectView(frame: screen.frame)
             blur.material = .fullScreenUI
@@ -147,6 +150,17 @@ final class CheckpointWindowController: NSWindowController {
             self?.overlayWindows.removeAll()
             completion()
         })
+    }
+
+    /// Removes the card and any overlays immediately, without calling onDone/onSnooze.
+    /// Used when the user goes away (sleep, lock, screensaver) mid-checkpoint.
+    func dismissImmediately() {
+        dismissed = true
+        window?.close()
+        for overlay in overlayWindows {
+            overlay.close()
+        }
+        overlayWindows.removeAll()
     }
 
     private func dismissModal(with session: CheckpointSession, updatedObjective: String?) {

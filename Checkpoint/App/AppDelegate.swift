@@ -80,10 +80,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sic.setup()
         statusItemController = sic
 
-        // 6. Observe sleep/wake to pause and resume the timer
-        let wsnc = NSWorkspace.shared.notificationCenter
-        wsnc.addObserver(self, selector: #selector(handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
-        wsnc.addObserver(self, selector: #selector(handleWake), name: NSWorkspace.didWakeNotification, object: nil)
+        // 6. Pause while the user is away: system sleep, display sleep, screensaver, screen lock
+        observeAwayEvents()
 
         // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
@@ -141,35 +139,67 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         checkpointTimer = timer
     }
 
-    // MARK: - Sleep / Wake
+    // MARK: - Away (Sleep / Display Sleep / Screensaver / Lock)
 
-    @objc private func handleSleep(_ notification: Notification) {
-        log.notice("━━━ SYSTEM SLEEP ━━━")
+    private enum AwayReason: String {
+        case systemSleep, displaySleep, screensaver, screenLocked
+    }
+
+    /// Checkpoints never fire while any of these are active.
+    private var awayReasons = Set<AwayReason>()
+
+    private func observeAwayEvents() {
+        let events: [(NotificationCenter, String, AwayReason, Bool)] = [
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.willSleepNotification.rawValue, .systemSleep, true),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification.rawValue, .systemSleep, false),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidSleepNotification.rawValue, .displaySleep, true),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidWakeNotification.rawValue, .displaySleep, false),
+            (DistributedNotificationCenter.default(), "com.apple.screensaver.didstart", .screensaver, true),
+            (DistributedNotificationCenter.default(), "com.apple.screensaver.didstop", .screensaver, false),
+            (DistributedNotificationCenter.default(), "com.apple.screenIsLocked", .screenLocked, true),
+            (DistributedNotificationCenter.default(), "com.apple.screenIsUnlocked", .screenLocked, false),
+        ]
+        for (center, name, reason, isStart) in events {
+            center.addObserver(forName: NSNotification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    if isStart { self?.beginAway(reason) } else { self?.endAway(reason) }
+                }
+            }
+        }
+    }
+
+    private func beginAway(_ reason: AwayReason) {
+        let wasAway = !awayReasons.isEmpty
+        awayReasons.insert(reason)
+        log.notice("━━━ AWAY: \(reason.rawValue) (reasons=\(self.awayReasons.map(\.rawValue))) ━━━")
+        guard !wasAway else { return }
+
         checkpointTimer?.stop()
         snoozeTimer?.cancel()
         snoozeTimer = nil
+
+        // Pull down any visible checkpoint (and its overlays) so nothing sits over the
+        // screensaver/lock screen or is left behind when the user returns.
+        if let wc = windowController {
+            log.notice("  Dismissing open checkpoint window")
+            wc.dismissImmediately()
+            windowController = nil
+        }
+        if appState.state != .paused {
+            appState.transition(to: .idle)
+        }
     }
 
-    @objc private func handleWake(_ notification: Notification) {
-        log.notice("━━━ SYSTEM WAKE ━━━")
-        log.notice("  State on wake: \(String(describing: self.appState.state))")
+    private func endAway(_ reason: AwayReason) {
+        guard awayReasons.remove(reason) != nil else { return }
+        log.notice("━━━ BACK: \(reason.rawValue) (remaining=\(self.awayReasons.map(\.rawValue))) ━━━")
+        guard awayReasons.isEmpty else { return }
 
         // If user had manually paused, respect that
         if appState.state == .paused {
-            log.notice("  User was paused before sleep, staying paused")
+            log.notice("  User was paused before going away, staying paused")
             return
         }
-
-        // Dismiss any stale checkpoint window
-        if appState.state == .presenting || appState.state == .triggered {
-            log.notice("  Dismissing stale checkpoint window")
-            windowController?.close()
-            windowController = nil
-        }
-
-        // Cancel any stale snooze
-        snoozeTimer?.cancel()
-        snoozeTimer = nil
 
         // Restart fresh
         appState.transition(to: .idle)
@@ -192,6 +222,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleTimerFire() {
         log.notice("handleTimerFire: currentState=\(String(describing: self.appState.state))")
+
+        guard awayReasons.isEmpty else {
+            log.notice("User away (\(self.awayReasons.map(\.rawValue))), skipping")
+            return
+        }
 
         // Reset daily counters on day boundary regardless of whether checkpoint fires
         resetDayCountersIfNeeded()
@@ -289,6 +324,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func presentCheckpoint(session: CheckpointSession, snoozeCount: Int) {
         log.notice("presentCheckpoint: snoozeCount=\(snoozeCount)")
+        guard awayReasons.isEmpty else {
+            log.notice("User away, not presenting")
+            appState.transition(to: .idle)
+            return
+        }
         appState.transition(to: .presenting)
 
         let interval = UserDefaults.standard.integer(forKey: "checkpointInterval")
