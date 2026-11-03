@@ -120,6 +120,7 @@ Clicking the Dock icon opens Settings: it's the app's main window.
 | **Menu Bar** | Time on objective (default) or a countdown |
 | **Questions per Check-in** | 1–3 grounding questions. Known issue: more than one adds load. |
 | **Preview Checkpoint** | See the card with current settings |
+| **Diagnostics** (collapsed) | For checking that things work: next and last check-in, state, away/idle/call/Focus, Start at Login status, version, data folder; **Copy** for bug reports. Collapsed because knowing when check-ins come makes them less effective. |
 | **Version, How Checkpoint Works…** | Which build you're on, plus the help panel |
 
 ### Check-ins

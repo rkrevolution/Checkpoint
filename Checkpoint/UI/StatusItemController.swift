@@ -245,6 +245,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             ("Simulate Focus", #selector(AppDelegate.debugToggleFocus), appDelegate.focusObserver.isFocusActive),
             ("Reset First Launch", #selector(AppDelegate.debugResetFirstLaunch), false),
         ]
+        submenu.addItem(disabled("Next check-in: \(appDelegate.nextCheckInDescription)"))
+        submenu.addItem(.separator())
         for (title, selector, isOn) in items {
             let item = action(title, selector, appDelegate)
             item.state = isOn ? .on : .off
