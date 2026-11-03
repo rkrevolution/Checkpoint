@@ -43,6 +43,13 @@ final class FocusModeObserver: NSObject {
         }
     }
 
+    #if DEBUG
+    func debugSetFocus(_ active: Bool) {
+        isFocusActive = active
+        onFocusChanged?(active)
+    }
+    #endif
+
     @objc nonisolated private func dndDidChange(_ note: Notification) {
         let isActive = note.name.rawValue.hasSuffix("dndstart")
         Task { @MainActor in

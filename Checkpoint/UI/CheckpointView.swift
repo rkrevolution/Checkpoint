@@ -5,6 +5,7 @@ struct CheckpointView: View {
     let currentObjective: String
     let nextCheckpointEstimate: String
     let checkpointNumber: Int
+    let allowSnooze: Bool
     var onDone: ((CheckpointSession, String?) -> Void)?
     var onSnooze: (() -> Void)?
 
@@ -20,12 +21,14 @@ struct CheckpointView: View {
          currentObjective: String = "",
          nextCheckpointEstimate: String = "",
          checkpointNumber: Int = 1,
+         allowSnooze: Bool = true,
          onDone: ((CheckpointSession, String?) -> Void)? = nil,
          onSnooze: (() -> Void)? = nil) {
         self.session = session
         self.currentObjective = currentObjective
         self.nextCheckpointEstimate = nextCheckpointEstimate
         self.checkpointNumber = checkpointNumber
+        self.allowSnooze = allowSnooze
         self.onDone = onDone
         self.onSnooze = onSnooze
     }
@@ -105,22 +108,26 @@ struct CheckpointView: View {
 
             // MARK: - Actions (two buttons)
             HStack(spacing: 12) {
-                let snoozeMin = max(1, UserDefaults.standard.integer(forKey: "snoozeMinutes"))
-                Button {
-                    onSnooze?()
-                } label: {
-                    Text("Not now (\(snoozeMin)m)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                if allowSnooze {
+                    let snoozeMin = max(1, UserDefaults.standard.integer(forKey: "snoozeMinutes"))
+                    Button {
+                        onSnooze?()
+                    } label: {
+                        Text("Not now (\(snoozeMin)m)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .disabled(!buttonsEnabled)
                 }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.escape, modifiers: [])
-                .disabled(!buttonsEnabled)
 
                 Spacer()
 
                 Button {
-                    let updatedObjective = isEditingObjective ? editedObjective.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+                    // Save any edit, even if the user already pressed Return to leave edit mode
+                    let edited = editedObjective.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let updatedObjective = edited != currentObjective ? edited : nil
                     onDone?(buildSession(outcome: .completed), updatedObjective)
                 } label: {
                     Text("Got it")
@@ -159,6 +166,12 @@ struct CheckpointView: View {
 
     // MARK: - Objective Section
 
+    /// The objective as edited on this card, falling back to the one it opened with.
+    private var displayedObjective: String {
+        let edited = editedObjective.trimmingCharacters(in: .whitespacesAndNewlines)
+        return edited.isEmpty ? currentObjective : edited
+    }
+
     @ViewBuilder
     private var objectiveSection: some View {
         if isEditingObjective {
@@ -173,14 +186,14 @@ struct CheckpointView: View {
                     }
             }
             .padding(.horizontal, 40)
-        } else if !currentObjective.isEmpty {
+        } else if !displayedObjective.isEmpty {
             // Show existing objective as passive cue — visually distinct
             VStack(spacing: 4) {
                 HStack(spacing: 6) {
                     Image(systemName: "target")
                         .font(.system(size: 11))
                         .foregroundStyle(.orange)
-                    Text(currentObjective)
+                    Text(displayedObjective)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(.primary)
                         .lineLimit(2)

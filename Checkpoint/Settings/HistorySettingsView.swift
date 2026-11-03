@@ -58,7 +58,8 @@ struct HistorySettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                List(filteredSessions) { session in
+                // Keyed by position: older logs can contain the same session ID more than once
+                List(Array(filteredSessions.enumerated()), id: \.offset) { _, session in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(dateFormatter.string(from: session.timestamp))

@@ -61,9 +61,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 2. Wire Focus observer → AppState (always observe; setting checked at fire time)
         focusObserver.onFocusChanged = { [weak self] isActive in
             guard let self else { return }
-            if isActive {
+            // Only move between idle and focusModeActive; never override a manual pause,
+            // a snooze, or an open checkpoint.
+            if isActive, self.appState.state == .idle {
                 self.appState.transition(to: .focusModeActive)
-            } else if self.appState.state == .focusModeActive {
+            } else if !isActive, self.appState.state == .focusModeActive {
                 self.appState.transition(to: .idle)
             }
         }
@@ -80,10 +82,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sic.setup()
         statusItemController = sic
 
-        // 6. Observe sleep/wake to pause and resume the timer
-        let wsnc = NSWorkspace.shared.notificationCenter
-        wsnc.addObserver(self, selector: #selector(handleSleep), name: NSWorkspace.willSleepNotification, object: nil)
-        wsnc.addObserver(self, selector: #selector(handleWake), name: NSWorkspace.didWakeNotification, object: nil)
+        // 6. Pause while the user is away: system sleep, display sleep, screensaver, screen lock
+        observeAwayEvents()
 
         // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
@@ -141,35 +141,67 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         checkpointTimer = timer
     }
 
-    // MARK: - Sleep / Wake
+    // MARK: - Away (Sleep / Display Sleep / Screensaver / Lock)
 
-    @objc private func handleSleep(_ notification: Notification) {
-        log.notice("━━━ SYSTEM SLEEP ━━━")
+    private enum AwayReason: String {
+        case systemSleep, displaySleep, screensaver, screenLocked
+    }
+
+    /// Checkpoints never fire while any of these are active.
+    private var awayReasons = Set<AwayReason>()
+
+    private func observeAwayEvents() {
+        let events: [(NotificationCenter, String, AwayReason, Bool)] = [
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.willSleepNotification.rawValue, .systemSleep, true),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification.rawValue, .systemSleep, false),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidSleepNotification.rawValue, .displaySleep, true),
+            (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidWakeNotification.rawValue, .displaySleep, false),
+            (DistributedNotificationCenter.default(), "com.apple.screensaver.didstart", .screensaver, true),
+            (DistributedNotificationCenter.default(), "com.apple.screensaver.didstop", .screensaver, false),
+            (DistributedNotificationCenter.default(), "com.apple.screenIsLocked", .screenLocked, true),
+            (DistributedNotificationCenter.default(), "com.apple.screenIsUnlocked", .screenLocked, false),
+        ]
+        for (center, name, reason, isStart) in events {
+            center.addObserver(forName: NSNotification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    if isStart { self?.beginAway(reason) } else { self?.endAway(reason) }
+                }
+            }
+        }
+    }
+
+    private func beginAway(_ reason: AwayReason) {
+        let wasAway = !awayReasons.isEmpty
+        awayReasons.insert(reason)
+        log.notice("━━━ AWAY: \(reason.rawValue) (reasons=\(self.awayReasons.map(\.rawValue))) ━━━")
+        guard !wasAway else { return }
+
         checkpointTimer?.stop()
         snoozeTimer?.cancel()
         snoozeTimer = nil
+
+        // Pull down any visible checkpoint (and its overlays) so nothing sits over the
+        // screensaver/lock screen or is left behind when the user returns.
+        if let wc = windowController {
+            log.notice("  Dismissing open checkpoint window")
+            wc.dismissImmediately()
+            windowController = nil
+        }
+        if appState.state != .paused {
+            appState.transition(to: .idle)
+        }
     }
 
-    @objc private func handleWake(_ notification: Notification) {
-        log.notice("━━━ SYSTEM WAKE ━━━")
-        log.notice("  State on wake: \(String(describing: self.appState.state))")
+    private func endAway(_ reason: AwayReason) {
+        guard awayReasons.remove(reason) != nil else { return }
+        log.notice("━━━ BACK: \(reason.rawValue) (remaining=\(self.awayReasons.map(\.rawValue))) ━━━")
+        guard awayReasons.isEmpty else { return }
 
         // If user had manually paused, respect that
         if appState.state == .paused {
-            log.notice("  User was paused before sleep, staying paused")
+            log.notice("  User was paused before going away, staying paused")
             return
         }
-
-        // Dismiss any stale checkpoint window
-        if appState.state == .presenting || appState.state == .triggered {
-            log.notice("  Dismissing stale checkpoint window")
-            windowController?.close()
-            windowController = nil
-        }
-
-        // Cancel any stale snooze
-        snoozeTimer?.cancel()
-        snoozeTimer = nil
 
         // Restart fresh
         appState.transition(to: .idle)
@@ -193,6 +225,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleTimerFire() {
         log.notice("handleTimerFire: currentState=\(String(describing: self.appState.state))")
 
+        guard awayReasons.isEmpty else {
+            log.notice("User away (\(self.awayReasons.map(\.rawValue))), skipping")
+            return
+        }
+
         // Reset daily counters on day boundary regardless of whether checkpoint fires
         resetDayCountersIfNeeded()
 
@@ -201,6 +238,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             log.notice("Recovering from outsideHours → idle")
             appState.transition(to: .idle)
             hasShownDaySummary = false
+        }
+
+        // Focus is re-checked below on every fire, so don't stay stuck in focusModeActive
+        // (e.g. after "Respect Focus" is turned off while Focus is on)
+        if appState.state == .focusModeActive {
+            appState.transition(to: .idle)
         }
 
         // Only fire from idle state
@@ -289,6 +332,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func presentCheckpoint(session: CheckpointSession, snoozeCount: Int) {
         log.notice("presentCheckpoint: snoozeCount=\(snoozeCount)")
+        guard awayReasons.isEmpty else {
+            log.notice("User away, not presenting")
+            appState.transition(to: .idle)
+            return
+        }
         appState.transition(to: .presenting)
 
         let interval = UserDefaults.standard.integer(forKey: "checkpointInterval")
@@ -296,12 +344,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let estimate = "~\(mins) min"
 
         let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
+        let maxSnoozes = UserDefaults.standard.integer(forKey: "maxSnoozesPerCheckpoint")
 
         let wc = CheckpointWindowController(
             session: session,
             currentObjective: objective,
             nextCheckpointEstimate: estimate,
             checkpointNumber: todayCheckpointCount,
+            allowSnooze: maxSnoozes == 0 || snoozeCount < maxSnoozes,
             onDone: { [weak self] completed, updatedObjective in
                 let formatter = DateFormatter()
                 formatter.timeStyle = .medium
@@ -354,22 +404,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Log the snooze
         if UserDefaults.standard.bool(forKey: "logResponses") {
-            var snoozed = session
-            snoozed.outcome = .snoozed
+            // Log each snooze as its own entry so History never sees duplicate IDs
+            let snoozed = CheckpointSession(
+                id: UUID(),
+                timestamp: Date(),
+                intervalSeconds: session.intervalSeconds,
+                questionsShown: session.questionsShown,
+                responses: session.responses,
+                outcome: .snoozed
+            )
             try? responseLog.append(snoozed)
         }
 
-        // Check if max snoozes reached
-        if maxSnoozes > 0, newCount >= maxSnoozes {
-            let action = UserDefaults.standard.string(forKey: "afterMaxSnoozeAction") ?? "autoDismiss"
-            if action == "autoDismiss" {
-                appState.transition(to: .idle)
-                return
-            } else {
-                // Force open modal
-                presentCheckpoint(session: session, snoozeCount: newCount)
-                return
-            }
+        // Max snoozes reached: either drop this checkpoint, or ("forceModal") fall through
+        // and re-present after the snooze without a "Not now" option.
+        if maxSnoozes > 0, newCount >= maxSnoozes,
+           (UserDefaults.standard.string(forKey: "afterMaxSnoozeAction") ?? "autoDismiss") == "autoDismiss" {
+            appState.transition(to: .idle)
+            return
         }
 
         let snoozeMinutes = UserDefaults.standard.integer(forKey: "snoozeMinutes")
@@ -384,6 +436,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         source.setEventHandler { [weak self] in
             guard let self else { return }
             self.snoozeTimer = nil
+            guard case .snoozed = self.appState.state else { return }
+            let focusBlocks = UserDefaults.standard.bool(forKey: "respectFocusMode") && self.focusObserver.isFocusActive
+            guard self.scheduleManager.shouldFire(), !focusBlocks else {
+                log.notice("Snoozed checkpoint dropped: schedule or Focus no longer allows it")
+                self.appState.transition(to: .idle)
+                return
+            }
             self.presentCheckpoint(session: session, snoozeCount: newCount)
         }
         source.resume()
@@ -513,7 +572,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openPreferences() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        // macOS 14+ ignores the old `showSettingsWindow:` action, so trigger the app menu's
+        // own Settings… item (the one SwiftUI's Settings scene installs) instead.
+        NSApp.activate()
+        if let appMenu = NSApp.mainMenu?.items.first?.submenu,
+           let index = appMenu.items.firstIndex(where: { $0.keyEquivalent == "," && $0.keyEquivalentModifierMask == .command }) {
+            appMenu.performActionForItem(at: index)
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 
     // Called from StatusItemController menu
@@ -546,6 +613,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return "Next check-in: ~\(mins) min"
     }
 }
+
+// MARK: - Debug Menu Actions
+
+#if DEBUG
+extension AppDelegate {
+
+    var debugScreensaverActive: Bool { awayReasons.contains(.screensaver) }
+    var debugScreenLocked: Bool { awayReasons.contains(.screenLocked) }
+
+    /// Goes through the normal fire path (all schedule/Focus/away gates apply).
+    @objc func debugCheckInSoon() {
+        log.notice("DEBUG: check-in in 10s")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            self?.triggerNow()
+        }
+    }
+
+    @objc func debugToggleScreensaver() {
+        debugScreensaverActive ? endAway(.screensaver) : beginAway(.screensaver)
+    }
+
+    @objc func debugToggleScreenLock() {
+        debugScreenLocked ? endAway(.screenLocked) : beginAway(.screenLocked)
+    }
+
+    @objc func debugToggleFocus() {
+        focusObserver.debugSetFocus(!focusObserver.isFocusActive)
+    }
+
+    @objc func debugResetFirstLaunch() {
+        UserDefaults.standard.removeObject(forKey: "hasLaunchedBefore")
+        log.notice("DEBUG: first-launch flag cleared; Welcome shows on next launch")
+    }
+}
+#endif
 
 // MARK: - UserDefaults KVO Extension
 
