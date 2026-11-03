@@ -139,7 +139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if checkpointTimer == nil {
             startTimer()
         }
-        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives()) { [weak self] in
+        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
             self?.objectiveController = nil
             log.notice("Objective prompt dismissed")
         }
@@ -687,7 +687,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func resumeCheckpoints() {
         // Re-prompt for objective on resume, then restart timer
-        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives()) { [weak self] in
+        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
             self?.objectiveController = nil
             let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
             self?.checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
@@ -716,7 +716,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func updateObjectiveFromMenu() {
         let oldObjective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
-        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives()) { [weak self] in
+        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
             self?.objectiveController = nil
             let newObjective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
             if oldObjective != newObjective {

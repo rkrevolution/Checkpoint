@@ -108,11 +108,31 @@ private struct ObjectivePromptView: View {
             Text("What are you working on?")
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
 
-            TextField("e.g. Finishing the API integration", text: $text)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 14))
-                .focused($isFocused)
-                .onSubmit(save)
+            // Combo box: type a new objective, or pick a recent one from the dropdown
+            HStack(spacing: 4) {
+                TextField("e.g. Finishing the API integration", text: $text)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 14))
+                    .focused($isFocused)
+                    .onSubmit(save)
+                Menu {
+                    if recentObjectives.isEmpty {
+                        Text("No recent objectives yet")
+                    } else {
+                        Section("Recent objectives") {
+                            ForEach(recentObjectives, id: \.self) { recent in
+                                Button(recent) { text = recent }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Pick a recent objective")
+            }
 
             if !recentObjectives.isEmpty {
                 HStack(spacing: 6) {
