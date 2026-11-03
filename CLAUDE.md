@@ -10,7 +10,10 @@ Requires Xcode 26.2+ (deployment target macOS 26.2). If `xcode-select` points at
 xcodebuild test -project Checkpoint.xcodeproj -scheme Checkpoint -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
 ```
 
-- To run a local Debug copy without a signing team, build with `CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=` and `open` the built `Checkpoint.app`.
+- `scripts/run.sh [launch args]` builds the current branch (Debug) and launches it, replacing the copy it started before. Launch args set settings for that run only, e.g. `-checkpointInterval 60 -jitterRange 0`.
+- `scripts/install.sh` builds Release and installs it to `/Applications` (the everyday copy).
+- `scripts/e2e.sh [--quick]` runs the end-to-end test (shows windows on screen while it runs).
+- Builds from the scripts are signed to run locally (no team needed) and take their build number from the git commit count. Debug builds show a DEV badge on the Dock icon.
 - Debug builds add a **Debug** submenu in the menu bar (check in in 10 s, simulate screensaver / lock / Focus, reset first launch). Use it for manual testing.
 - Logs: `log stream --predicate 'subsystem == "com.rkrev.checkpoint"'`.
 - CI (`.github/workflows/ci.yml`) builds and tests every PR and push to `main`; the shared scheme lives in `Checkpoint.xcodeproj/xcshareddata`.
@@ -22,6 +25,7 @@ xcodebuild test -project Checkpoint.xcodeproj -scheme Checkpoint -destination 'p
 - `Checkpoint/UI` — checkpoint card and window controllers, menu bar item, prompts.
 - `Checkpoint/Settings` — the Preferences tabs.
 - `Checkpoint/Resources/questions.json` — built-in questions; the source of truth for categories.
+- `docs/ux-flow.md` — user flow and state diagrams (Mermaid) plus the UX review; update the diagrams when the user loop changes. `docs/research-basis.md` — evidence behind design choices.
 - The Xcode project uses folder-synced groups: adding or deleting a file needs no `project.pbxproj` edit.
 
 ## Rules

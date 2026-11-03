@@ -4,12 +4,16 @@ import SwiftUI
 
 struct GeneralSettingsView: View {
     @EnvironmentObject private var customStore: CustomQuestionStore
+    @EnvironmentObject private var objectiveTracker: ObjectiveTracker
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.changeObjective) private var changeObjective
     @AppStorage("checkpointInterval") private var intervalSeconds = 2700
     @AppStorage("activeHoursStart") private var activeHoursStart = 8
     @AppStorage("activeHoursEnd") private var activeHoursEnd = 18
     @AppStorage("checkpointsEnabled") private var checkpointsEnabled = true
     @AppStorage("useActiveHours") private var useActiveHours = false
     @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
+    @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
 
     @State private var launchAtLogin = false
     @State private var previewController: CheckpointWindowController?
@@ -18,6 +22,8 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
+            nowSection
+
             Section {
                 Toggle("Start at Login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, newValue in
@@ -81,6 +87,16 @@ struct GeneralSettingsView: View {
                 }
             }
 
+            Section("Menu Bar") {
+                Picker("Show", selection: $menuBarDisplay) {
+                    Text("Time on current objective").tag("objectiveTime")
+                    Text("Countdown to next check-in").tag("countdown")
+                }
+                Text("Time on your objective keeps time visible. A countdown lets you anticipate check-ins, which makes them less effective.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Questions per Check-in") {
                 Picker("Questions", selection: $questionsPerCheckpoint) {
                     Text("1").tag(1)
@@ -100,6 +116,13 @@ struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section {
+                Text(AppInfo.displayString)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
         }
         .formStyle(.grouped)
         .padding()
@@ -113,6 +136,61 @@ struct GeneralSettingsView: View {
                 let nearest = intervalOptions.min(by: { abs($0 - currentMins) < abs($1 - currentMins) }) ?? 45
                 intervalSeconds = nearest * 60
             }
+        }
+    }
+
+    // MARK: - Now
+
+    /// What the app thinks you're working on right now, and for how long.
+    private var nowSection: some View {
+        Section("Now") {
+            // Refreshes the time while Settings is open
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                VStack(alignment: .leading, spacing: 6) {
+                    if let session = objectiveTracker.current {
+                        HStack(spacing: 6) {
+                            Image(systemName: "target")
+                                .foregroundStyle(.orange)
+                            Text(session.objective)
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .lineLimit(2)
+                        }
+                        Text("\(DurationText.long(session.activeSeconds(at: context.date))) · since \(session.startedAt.formatted(date: .omitted, time: .shortened))")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.orange)
+                            .monospacedDigit()
+                        if let plan = session.ifThenPlan {
+                            Label("If I drift: \(plan)", systemImage: "arrow.uturn.backward")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("No objective set")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            HStack {
+                Text(checkInStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(objectiveTracker.current == nil ? "Set Objective…" : "Change…") {
+                    changeObjective()
+                }
+            }
+        }
+    }
+
+    private var checkInStatus: String {
+        switch appState.state {
+        case .idle, .triggered: return "Check-ins running"
+        case .presenting: return "Check-in on screen"
+        case .snoozed: return "Check-in snoozed"
+        case .paused: return "Check-ins paused"
+        case .outsideHours: return "Outside active hours"
+        case .focusModeActive: return "Held during Focus"
         }
     }
 
@@ -166,5 +244,10 @@ struct GeneralSettingsView: View {
 #Preview {
     GeneralSettingsView()
         .environmentObject(CustomQuestionStore())
+        .environmentObject(AppState())
+        .environmentObject(ObjectiveTracker(
+            defaults: UserDefaults(suiteName: "preview")!,
+            sessionsURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-sessions.jsonl")
+        ))
         .frame(width: 520, height: 480)
 }

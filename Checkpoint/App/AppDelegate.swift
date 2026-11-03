@@ -14,6 +14,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let focusObserver = FocusModeObserver()
     let responseLog = ResponseLog()
     let customStore = CustomQuestionStore()
+    let objectiveTracker = ObjectiveTracker()
+    private var heartbeatTimer: Timer?
     var checkpointTimer: CheckpointTimer?
     private var snoozeTimer: DispatchSourceTimer?
     private var windowController: CheckpointWindowController?
@@ -55,7 +57,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "disabledQuestionIDs": [String](),
             "showBreathingCue": false,
             "fullScreenCheckpoint": false,
+            "menuBarDisplay": "objectiveTime",
         ])
+
+        // Time on the current objective (#24): resume or start the session, then keep it in sync
+        objectiveTracker.resume(
+            objective: UserDefaults.standard.string(forKey: "currentObjective") ?? "",
+            ifThenPlan: UserDefaults.standard.string(forKey: "currentIfThenPlan")
+        )
+        observeObjectiveChanges()
 
         // 1. Give QuestionBank access to custom questions
         questionBank.customStore = customStore
@@ -75,6 +85,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 3. Set dock icon programmatically (sun)
         setDockIcon()
+        #if DEBUG
+        // Make Debug copies unmistakable next to an installed release copy
+        NSApp.dockTile.badgeLabel = "DEV"
+        #endif
+        log.notice("\(AppInfo.displayString, privacy: .public)")
 
         // 5. Setup menu bar status item (running indicator + countdown)
         let sic = StatusItemController(appDelegate: self)
@@ -124,7 +139,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if checkpointTimer == nil {
             startTimer()
         }
-        let oc = ObjectivePromptController { [weak self] in
+        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
             self?.objectiveController = nil
             log.notice("Objective prompt dismissed")
         }
@@ -182,6 +197,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("━━━ AWAY: \(reason.rawValue, privacy: .public) (reasons=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard !wasAway else { return }
 
+        objectiveTracker.beginAway()
+
         checkpointTimer?.stop()
         snoozeTimer?.cancel()
         snoozeTimer = nil
@@ -202,6 +219,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard awayReasons.remove(reason) != nil else { return }
         log.notice("━━━ BACK: \(reason.rawValue, privacy: .public) (remaining=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard awayReasons.isEmpty else { return }
+
+        objectiveTracker.endAway()
 
         // If user had manually paused, respect that
         if appState.state == .paused {
@@ -370,6 +389,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             currentObjective: objective,
             nextCheckpointEstimate: estimate,
             checkpointNumber: todayCheckpointCount,
+            objectiveSession: objectiveTracker.current,
             allowSnooze: maxSnoozes == 0 || snoozeCount < maxSnoozes,
             onDone: { [weak self] completed, updatedObjective in
                 let formatter = DateFormatter()
@@ -477,13 +497,99 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let controller = DaySummaryController(
             checkpointCount: todayCheckpointCount,
-            objectives: todayObjectives
+            objectiveTimes: todayObjectiveTimes()
         )
         daySummaryController = controller
         controller.show()
     }
 
     // MARK: - Settings Observation
+
+    /// Today's objectives with total active time, longest first.
+    private func todayObjectiveTimes() -> [(objective: String, seconds: TimeInterval)] {
+        let now = Date()
+        var totals: [String: TimeInterval] = [:]
+        for session in objectiveTracker.todaySessions() {
+            totals[session.objective, default: 0] += session.activeSeconds(at: now)
+        }
+        for objective in todayObjectives where totals[objective] == nil {
+            totals[objective] = 0
+        }
+        return totals.map { ($0.key, $0.value) }.sorted { $0.seconds > $1.seconds }
+    }
+
+    private func observeObjectiveChanges() {
+        UserDefaults.standard.publisher(for: \.currentObjective)
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] objective in self?.objectiveTracker.objectiveChanged(to: objective ?? "") }
+            .store(in: &cancellables)
+        UserDefaults.standard.publisher(for: \.currentIfThenPlan)
+            .removeDuplicates()
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] plan in self?.objectiveTracker.ifThenPlanChanged(to: plan) }
+            .store(in: &cancellables)
+
+        // Lets the tracker exclude time the app wasn't running after a relaunch
+        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.objectiveTracker.heartbeat() }
+        }
+        timer.tolerance = 15
+        RunLoop.main.add(timer, forMode: .common)
+        heartbeatTimer = timer
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        objectiveTracker.heartbeat()
+    }
+
+    // MARK: - Stall detection (#25)
+
+    var isAway: Bool { !awayReasons.isEmpty }
+    var lastCheckInDate: Date? { lastCheckpointDate }
+
+    /// Why check-ins have stopped when they shouldn't have, or nil if all is well.
+    /// A time-blind user won't notice missing check-ins, so the menu bar shows this.
+    var stallReason: String? {
+        guard awayReasons.isEmpty, welcomeController == nil else { return nil }
+        let now = Date()
+        switch appState.state {
+        case .idle:
+            guard let next = checkpointTimer?.nextFireDate else { return "the timer isn't running" }
+            if next < now.addingTimeInterval(-90) { return "a check-in is overdue" }
+        case .snoozed(let until, _):
+            if until < now.addingTimeInterval(-90) { return "a snoozed check-in didn't come back" }
+        case .presenting:
+            if windowController?.window?.isVisible != true { return "the check-in card isn't on screen" }
+        default:
+            break
+        }
+        return nil
+    }
+
+    func logStall(_ reason: String) {
+        log.error("Check-ins stalled: \(reason, privacy: .public) state=\(String(describing: self.appState.state), privacy: .public)")
+    }
+
+    /// Menu action shown with the stall warning: clears whatever is stuck and starts fresh.
+    @objc func restartCheckIns() {
+        log.notice("Restarting check-ins")
+        windowController?.dismissImmediately()
+        windowController = nil
+        snoozeTimer?.cancel()
+        snoozeTimer = nil
+        appState.transition(to: .idle)
+        let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
+        if checkpointTimer == nil {
+            startTimer()
+        } else {
+            checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
+            elapsedSince = Date()
+        }
+        statusItemController?.updateDisplay()
+    }
 
     private func observeSettingsChanges() {
         UserDefaults.standard
@@ -581,7 +687,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func resumeCheckpoints() {
         // Re-prompt for objective on resume, then restart timer
-        let oc = ObjectivePromptController { [weak self] in
+        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
             self?.objectiveController = nil
             let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
             self?.checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
@@ -610,7 +716,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func updateObjectiveFromMenu() {
         let oldObjective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
-        let oc = ObjectivePromptController { [weak self] in
+        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
             self?.objectiveController = nil
             let newObjective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
             if oldObjective != newObjective {
@@ -726,6 +832,14 @@ extension AppDelegate {
 // MARK: - UserDefaults KVO Extension
 
 extension UserDefaults {
+    @objc dynamic var currentObjective: String? {
+        return string(forKey: "currentObjective")
+    }
+
+    @objc dynamic var currentIfThenPlan: String? {
+        return string(forKey: "currentIfThenPlan")
+    }
+
     @objc dynamic var checkpointInterval: Int {
         return integer(forKey: "checkpointInterval")
     }

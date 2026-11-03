@@ -5,7 +5,7 @@ import SwiftUI
 /// "Today: N checkpoints, worked on: X, Y, Z"
 final class DaySummaryController: NSWindowController {
 
-    init(checkpointCount: Int, objectives: [String]) {
+    init(checkpointCount: Int, objectiveTimes: [(objective: String, seconds: TimeInterval)]) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 340, height: 200),
             styleMask: [.titled, .closable],
@@ -21,7 +21,7 @@ final class DaySummaryController: NSWindowController {
 
         let view = DaySummaryView(
             checkpointCount: checkpointCount,
-            objectives: objectives,
+            objectiveTimes: objectiveTimes,
             onDismiss: { [weak self] in
                 self?.window?.close()
             }
@@ -44,7 +44,7 @@ final class DaySummaryController: NSWindowController {
 
 private struct DaySummaryView: View {
     let checkpointCount: Int
-    let objectives: [String]
+    let objectiveTimes: [(objective: String, seconds: TimeInterval)]
     var onDismiss: () -> Void
 
     var body: some View {
@@ -61,8 +61,10 @@ private struct DaySummaryView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(.primary)
 
-                if !objectives.isEmpty {
-                    Text("Worked on: \(objectives.joined(separator: ", "))")
+                if !objectiveTimes.isEmpty {
+                    Text("Worked on: " + objectiveTimes.map { item in
+                        item.seconds >= 60 ? "\(item.objective) (\(DurationText.long(item.seconds)))" : item.objective
+                    }.joined(separator: ", "))
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

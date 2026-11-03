@@ -7,11 +7,13 @@ final class ObjectivePromptController: NSWindowController {
 
     private var onDone: (() -> Void)?
 
-    init(onDone: @escaping () -> Void) {
+    /// - Parameter recentObjectives: one-tap suggestions, so returning to an earlier task is quick
+    ///   and its name stays consistent (time per objective only adds up when names match).
+    init(recentObjectives: [String] = [], onDone: @escaping () -> Void) {
         self.onDone = onDone
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 180),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -23,12 +25,20 @@ final class ObjectivePromptController: NSWindowController {
         super.init(window: window)
 
         let existing = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
+        let existingPlan = UserDefaults.standard.string(forKey: "currentIfThenPlan") ?? ""
 
         let view = ObjectivePromptView(
             initialText: existing,
-            onSave: { [weak self] text in
+            initialPlan: existingPlan,
+            recentObjectives: recentObjectives.filter { $0 != existing },
+            onSave: { [weak self] text, plan in
                 if !text.isEmpty {
                     UserDefaults.standard.set(text, forKey: "currentObjective")
+                }
+                if plan.isEmpty {
+                    UserDefaults.standard.removeObject(forKey: "currentIfThenPlan")
+                } else {
+                    UserDefaults.standard.set(plan, forKey: "currentIfThenPlan")
                 }
                 self?.window?.close()
                 self?.onDone?()
@@ -72,14 +82,25 @@ final class ObjectivePromptController: NSWindowController {
 
 private struct ObjectivePromptView: View {
     let initialText: String
-    var onSave: (String) -> Void
+    let initialPlan: String
+    let recentObjectives: [String]
+    var onSave: (String, String) -> Void
     var onSkip: () -> Void
 
     @State private var text = ""
+    @State private var plan = ""
     @FocusState private var isFocused: Bool
 
+    /// Common if-then plans, from "distractibility delay" and re-orienting strategies.
+    private let planSuggestions = [
+        "write the distraction down and come back",
+        "re-read my objective and do the next small step",
+        "close the extra tabs and apps",
+        "stand up, stretch, then restart",
+    ]
+
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             Image(systemName: "sun.max.fill")
                 .font(.system(size: 28))
                 .foregroundStyle(.orange)
@@ -87,13 +108,67 @@ private struct ObjectivePromptView: View {
             Text("What are you working on?")
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
 
-            TextField("e.g. Finishing the API integration", text: $text)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(size: 14))
-                .focused($isFocused)
-                .onSubmit {
-                    onSave(text.trimmingCharacters(in: .whitespacesAndNewlines))
+            // Combo box: type a new objective, or pick a recent one from the dropdown
+            HStack(spacing: 4) {
+                TextField("e.g. Finishing the API integration", text: $text)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 14))
+                    .focused($isFocused)
+                    .onSubmit(save)
+                Menu {
+                    if recentObjectives.isEmpty {
+                        Text("No recent objectives yet")
+                    } else {
+                        Section("Recent objectives") {
+                            ForEach(recentObjectives, id: \.self) { recent in
+                                Button(recent) { text = recent }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
                 }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Pick a recent objective")
+            }
+
+            if !recentObjectives.isEmpty {
+                HStack(spacing: 6) {
+                    Text("Recent:")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    ForEach(recentObjectives.prefix(3), id: \.self) { recent in
+                        Button(recent) { text = recent }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("If I drift, I will… (optional)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Menu("Suggestions") {
+                        ForEach(planSuggestions, id: \.self) { suggestion in
+                            Button(suggestion) { plan = suggestion }
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .controlSize(.small)
+                    .fixedSize()
+                }
+                TextField("e.g. write the distraction down and come back", text: $plan)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .onSubmit(save)
+            }
 
             HStack {
                 Button("Skip") {
@@ -106,21 +181,31 @@ private struct ObjectivePromptView: View {
                 Spacer()
 
                 Button {
-                    onSave(text.trimmingCharacters(in: .whitespacesAndNewlines))
+                    save()
                 } label: {
                     Text("Start")
                         .font(.system(size: 13, weight: .medium))
                 }
                 .keyboardShortcut(.defaultAction)
                 .controlSize(.large)
-                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(trimmed(text).isEmpty)
             }
         }
         .padding(24)
-        .frame(width: 380, height: 180)
+        .frame(width: 420)
         .onAppear {
             text = initialText
+            plan = initialPlan
             isFocused = true
         }
+    }
+
+    private func save() {
+        guard !trimmed(text).isEmpty else { return }
+        onSave(trimmed(text), trimmed(plan))
+    }
+
+    private func trimmed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
