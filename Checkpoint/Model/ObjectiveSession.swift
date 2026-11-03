@@ -41,6 +41,18 @@ extension ObjectiveSession {
     }
 }
 
+/// Objective names match ignoring capitalization and surrounding spaces, so "building the app"
+/// and "Building the app" are one task and its time adds up.
+enum ObjectiveName {
+    nonisolated static func key(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    nonisolated static func same(_ a: String, _ b: String) -> Bool {
+        key(a) == key(b)
+    }
+}
+
 /// Time per objective across stretches (switching back to a task adds to the same total).
 enum ObjectiveTotals {
     struct Total: Equatable {
@@ -51,16 +63,21 @@ enum ObjectiveTotals {
 
     /// Totals by objective name, longest first.
     nonisolated static func byObjective(_ sessions: [ObjectiveSession], at now: Date) -> [Total] {
-        var order: [String] = []
+        var order: [String] = []                 // keys, first seen first
+        var spelling: [String: String] = [:]     // key → first-seen spelling
         var seconds: [String: TimeInterval] = [:]
         var counts: [String: Int] = [:]
         for session in sessions {
-            if seconds[session.objective] == nil { order.append(session.objective) }
-            seconds[session.objective, default: 0] += session.activeSeconds(at: now)
-            counts[session.objective, default: 0] += 1
+            let key = ObjectiveName.key(session.objective)
+            if seconds[key] == nil {
+                order.append(key)
+                spelling[key] = session.objective
+            }
+            seconds[key, default: 0] += session.activeSeconds(at: now)
+            counts[key, default: 0] += 1
         }
         return order
-            .map { Total(objective: $0, seconds: seconds[$0]!, stretches: counts[$0]!) }
+            .map { Total(objective: spelling[$0]!, seconds: seconds[$0]!, stretches: counts[$0]!) }
             .sorted { $0.seconds > $1.seconds }
     }
 }

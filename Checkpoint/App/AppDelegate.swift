@@ -216,7 +216,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ?? UserDefaults.standard.string(forKey: "currentObjective") ?? ""
         guard !objective.isEmpty else { return nil }
         let today = ObjectiveTotals.byObjective(objectiveTracker.todaySessions(), at: Date())
-            .first { $0.objective == objective }
+            .first { ObjectiveName.same($0.objective, objective) }
         if let today, today.seconds >= 60 {
             return "You were on: \(objective) · \(DurationText.long(today.seconds)) today"
         }
@@ -495,8 +495,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             responses: original.responses,
             outcome: original.outcome
         )
-        let mins = max(1, interval / 60)
-        let estimate = "~\(mins) min"
 
         let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
         let maxSnoozes = UserDefaults.standard.integer(forKey: "maxSnoozesPerCheckpoint")
@@ -504,7 +502,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let wc = CheckpointWindowController(
             session: session,
             currentObjective: objective,
-            nextCheckpointEstimate: estimate,
             checkpointNumber: todayCheckpointCount,
             objectiveSession: objectiveTracker.current,
             recentObjectives: objectiveTracker.recentObjectives(limit: 10),
@@ -883,13 +880,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         menu.addItem(NSMenuItem.separator())
-
-        let nextItem = NSMenuItem(title: nextCheckpointLabel(), action: nil, keyEquivalent: "")
-        nextItem.isEnabled = false
-        menu.addItem(nextItem)
-
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "Preferences…", action: #selector(openPreferences), keyEquivalent: ",")
+        menu.addItem(withTitle: "Settings…", action: #selector(openPreferences), keyEquivalent: ",")
 
         return menu
     }
@@ -974,11 +965,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         fireCheckpoint()
     }
 
-    private func nextCheckpointLabel() -> String {
-        guard let next = checkpointTimer?.nextFireDate else { return "Checkpoints paused" }
-        let mins = max(1, Int(next.timeIntervalSinceNow / 60))
-        return "Next check-in: ~\(mins) min"
-    }
+
 }
 
 // MARK: - Debug Menu Actions

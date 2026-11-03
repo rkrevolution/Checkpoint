@@ -14,7 +14,7 @@ final class WelcomeWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Checkpoint"
+        window.title = "Welcome to Checkpoint"
         window.isReleasedWhenClosed = false
         window.center()
 

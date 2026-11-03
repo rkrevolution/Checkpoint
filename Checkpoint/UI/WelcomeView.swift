@@ -81,7 +81,7 @@ struct WelcomeView: View {
 
             // Action
             HStack {
-                Text("You can always change these in Preferences (\u{2318},)")
+                Text("You can always change these in Settings (\u{2318},)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
 

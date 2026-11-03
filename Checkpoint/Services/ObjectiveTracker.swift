@@ -70,10 +70,12 @@ final class ObjectiveTracker: ObservableObject {
 
     func objectiveChanged(to objective: String) {
         let trimmed = objective.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != current?.objective else { return }
+        if let current, ObjectiveName.same(trimmed, current.objective) { return }
+        // Reuse the spelling of a matching recent objective so history stays consistent
+        let name = recentObjectives(limit: 50).first { ObjectiveName.same($0, trimmed) } ?? trimmed
         let plan = current?.ifThenPlan
         end(at: now())
-        start(objective: trimmed, ifThenPlan: plan)
+        start(objective: name, ifThenPlan: plan)
     }
 
     func ifThenPlanChanged(to plan: String?) {
@@ -143,7 +145,7 @@ final class ObjectiveTracker: ObservableObject {
         var seen = Set<String>()
         var result: [String] = []
         for session in (finished + (current.map { [$0] } ?? [])).reversed() where session.startedAt >= cutoff {
-            if seen.insert(session.objective).inserted {
+            if seen.insert(ObjectiveName.key(session.objective)).inserted {
                 result.append(session.objective)
             }
             if result.count == limit { break }

@@ -240,12 +240,10 @@ struct GeneralSettingsView: View {
             responses: questions.map { QuestionResponse(questionId: $0.id, text: "") },
             outcome: .completed
         )
-        let mins = max(1, intervalSeconds / 60)
         let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
         let wc = CheckpointWindowController(
             session: session,
             currentObjective: objective,
-            nextCheckpointEstimate: "~\(mins) min",
             checkpointNumber: 1,
             onDone: { [self] _, _ in previewController = nil },
             onSnooze: { [self] in previewController = nil }

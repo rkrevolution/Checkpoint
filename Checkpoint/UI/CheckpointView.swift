@@ -7,7 +7,6 @@ import SwiftUI
 struct CheckpointView: View {
     let session: CheckpointSession
     let currentObjective: String
-    let nextCheckpointEstimate: String
     let checkpointNumber: Int
     /// Time spent on the current objective (#10), and its if-then plan (#32)
     let objectiveSession: ObjectiveSession?
@@ -31,7 +30,6 @@ struct CheckpointView: View {
 
     init(session: CheckpointSession,
          currentObjective: String = "",
-         nextCheckpointEstimate: String = "",
          checkpointNumber: Int = 1,
          objectiveSession: ObjectiveSession? = nil,
          recentObjectives: [String] = [],
@@ -40,10 +38,9 @@ struct CheckpointView: View {
          onSnooze: (() -> Void)? = nil) {
         self.session = session
         self.currentObjective = currentObjective
-        self.nextCheckpointEstimate = nextCheckpointEstimate
         self.checkpointNumber = checkpointNumber
         self.objectiveSession = objectiveSession
-        self.recentObjectives = recentObjectives.filter { $0 != currentObjective }
+        self.recentObjectives = recentObjectives.filter { !ObjectiveName.same($0, currentObjective) }
         self.allowSnooze = allowSnooze
         self.onDone = onDone
         self.onSnooze = onSnooze
@@ -67,25 +64,27 @@ struct CheckpointView: View {
                     .padding(.bottom, 12)
             }
 
-            Rectangle()
-                .fill(.separator)
-                .frame(height: 0.5)
-                .padding(.horizontal, 40)
-                .padding(.bottom, 14)
+            // With no objective, the "What are you working on?" picker above is the only question
+            if !(mode == .ask && currentObjective.isEmpty) {
+                Rectangle()
+                    .fill(.separator)
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 40)
+                    .padding(.bottom, 14)
 
-            Group {
                 switch mode {
                 case .ask: askSection
                 case .drifted: driftedSection
                 case .switched: switchedSection
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
 
             footer
+                .padding(.top, 14)
         }
         .padding(28)
-        .frame(width: 440, height: 440)
+        .frame(width: 440)
+        .fixedSize(horizontal: false, vertical: true)  // the window sizes to the card
         .onAppear {
             appeared = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -101,9 +100,6 @@ struct CheckpointView: View {
             Text(session.timestamp, style: .time)
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .monospacedDigit()
-            Text("\(DurationText.long(TimeInterval(session.intervalSeconds))) since your last check-in")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
         }
         .opacity(appeared ? 1 : 0)
         .animation(.easeOut(duration: 0.4), value: appeared)
@@ -148,7 +144,7 @@ struct CheckpointView: View {
                         .lineLimit(2)
                         .multilineTextAlignment(.center)
                 }
-                if let objectiveSession, objectiveSession.objective == currentObjective {
+                if let objectiveSession, ObjectiveName.same(objectiveSession.objective, currentObjective) {
                     Text("for " + objectiveSession.progressText(at: session.timestamp))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(objectiveSession.isOverEstimate(at: session.timestamp) ? .red : .orange)
@@ -187,9 +183,6 @@ struct CheckpointView: View {
             }
 
             VStack(spacing: 6) {
-                Text("Right now I'm…")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
                     Button {
                         finish(.onTrack)
@@ -328,12 +321,8 @@ struct CheckpointView: View {
             Text(checkpointNumber > 0 ? "\u{2713} \(checkpointNumber) today" : "")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
-            Text(buttonsEnabled ? "· next \(nextCheckpointEstimate)" : "")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
         }
         .frame(height: 18)
-        .padding(.top, 8)
     }
 
     // MARK: - Finishing
@@ -376,7 +365,6 @@ struct CheckpointView: View {
     CheckpointView(
         session: session,
         currentObjective: "Finish the settings migration",
-        nextCheckpointEstimate: "~45 min",
         checkpointNumber: 3,
         objectiveSession: ObjectiveSession(
             id: UUID(), objective: "Finish the settings migration", ifThenPlan: "close the extra tabs",
