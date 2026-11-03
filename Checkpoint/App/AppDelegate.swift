@@ -38,6 +38,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var todayController: TodayWindowController?
     private var howItWorksController: HowItWorksWindowController?
+    private lazy var focusPill = FocusPillController(tracker: objectiveTracker) { [weak self] in
+        self?.updateObjectiveFromMenu()
+    }
     lazy var commands = AppCommands(
         changeObjective: { [weak self] in self?.updateObjectiveFromMenu() },
         showHowItWorks: { [weak self] in self?.showHowItWorks() }
@@ -108,6 +111,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "showBreathingCue": false,
             "fullScreenCheckpoint": false,
             "holdDuringCalls": true,
+            "showFocusPill": false,
             "menuBarDisplay": "objectiveTime",
         ])
 
@@ -115,6 +119,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // No session today means the objective prompt appears below.
         objectiveTracker.resume()
         observeObjectiveChanges()
+        observeFocusPill()
 
         // 1. Give QuestionBank access to custom questions
         questionBank.customStore = customStore
@@ -294,6 +299,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func beginAway(_ reason: AwayReason) {
         let wasAway = !awayReasons.isEmpty
         awayReasons.insert(reason)
+        defer { updateFocusPill() }
         if !wasAway { awayStartedAt = Date() }
         log.notice("━━━ AWAY: \(reason.rawValue, privacy: .public) (reasons=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard !wasAway else { return }
@@ -336,6 +342,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             presentObjectivePrompt(greeting: "Welcome back") {}
         }
         awayStartedAt = nil
+        updateFocusPill()
 
         // If user had manually paused, respect that
         if appState.state == .paused {
@@ -714,6 +721,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    // MARK: - Focus pill
+
+    /// Shows or hides the always-visible focus strip to match the setting and current state.
+    private func updateFocusPill() {
+        focusPill.setVisible(FocusPillPolicy.shouldShow(
+            enabled: UserDefaults.standard.bool(forKey: "showFocusPill"),
+            hasObjective: objectiveTracker.current != nil,
+            isPaused: appState.state == .paused,
+            isAway: !awayReasons.isEmpty
+        ))
+    }
+
+    private func observeFocusPill() {
+        objectiveTracker.$current.map { $0 == nil }.removeDuplicates()
+            .combineLatest(appState.$state.map { $0 == .paused }.removeDuplicates(),
+                           UserDefaults.standard.publisher(for: \.showFocusPill).removeDuplicates())
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateFocusPill() }
+            .store(in: &cancellables)
+    }
+
+    @objc func toggleFocusPill() {
+        let defaults = UserDefaults.standard
+        defaults.set(!defaults.bool(forKey: "showFocusPill"), forKey: "showFocusPill")
+    }
+
     // MARK: - Calls (#1)
 
     private var holdsForCall: Bool {
@@ -1055,6 +1088,10 @@ extension UserDefaults {
 
     @objc dynamic var currentIfThenPlan: String? {
         return string(forKey: "currentIfThenPlan")
+    }
+
+    @objc dynamic var showFocusPill: Bool {
+        return bool(forKey: "showFocusPill")
     }
 
     @objc dynamic var checkpointInterval: Int {

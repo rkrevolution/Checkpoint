@@ -14,6 +14,7 @@ struct GeneralSettingsView: View {
     @AppStorage("useActiveHours") private var useActiveHours = false
     @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
     @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
+    @AppStorage("showFocusPill") private var showFocusPill = false
     @AppStorage("goal1") private var goal1 = ""
     @AppStorage("goal2") private var goal2 = ""
     @AppStorage("goal3") private var goal3 = ""
@@ -115,6 +116,13 @@ struct GeneralSettingsView: View {
                         .controlSize(.small)
                     }
                 }
+            }
+
+            Section("Focus Strip") {
+                Toggle("Show my current focus at the top of the screen", isOn: $showFocusPill)
+                Text("A small strip with your objective and time on it. Never takes focus, hidden from screen sharing, and hidden while paused or away. Drag to move; double-click to change.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Menu Bar") {
