@@ -7,6 +7,8 @@ private let log = Logger(subsystem: "com.rkrev.checkpoint", category: "Checkpoin
 final class CheckpointTimer {
 
     var onFire: (() -> Void)?
+    /// Called with each scheduled fire date, so it can be remembered across relaunches.
+    var onSchedule: ((Date) -> Void)?
 
     private var timer: DispatchSourceTimer?
     private var _nextFireDate: Date?
@@ -16,13 +18,15 @@ final class CheckpointTimer {
         return _nextFireDate
     }
 
-    func start(interval: TimeInterval) {
+    /// - Parameter firstFireIn: wait before the first check-in, e.g. to keep a schedule across a
+    ///   relaunch; later check-ins use the interval with jitter as usual.
+    func start(interval: TimeInterval, firstFireIn: TimeInterval? = nil) {
         log.notice("start: baseInterval=\(Int(interval))s")
         stop()
-        scheduleNext(baseInterval: interval)
+        scheduleNext(baseInterval: interval, delay: firstFireIn.map { Int($0.rounded()) })
     }
 
-    private func scheduleNext(baseInterval: TimeInterval) {
+    private func scheduleNext(baseInterval: TimeInterval, delay: Int? = nil) {
         timer?.cancel()
 
         let jitterRange = Self.effectiveJitterRange(
@@ -30,7 +34,7 @@ final class CheckpointTimer {
             baseInterval: baseInterval
         )
         let jitter = jitterRange > 0 ? Int.random(in: -jitterRange...jitterRange) : 0
-        let actual = max(60, Int(baseInterval) + jitter) // never less than 1 min
+        let actual = delay ?? max(60, Int(baseInterval) + jitter) // never less than 1 min
 
         let fireDate = Date().addingTimeInterval(TimeInterval(actual))
         let formatter = DateFormatter()
@@ -52,6 +56,19 @@ final class CheckpointTimer {
         _nextFireDate = fireDate
         source.resume()
         timer = source
+        onSchedule?(fireDate)
+    }
+
+    /// How long to wait for the first check-in after a launch, given when the next one was due
+    /// before the app quit. Keeps a pending check-in instead of restarting the countdown; one that
+    /// came due while the app was closed shows shortly after launch. Nil means start normally.
+    nonisolated static func resumeDelay(savedDue: Date?, now: Date, interval: TimeInterval) -> TimeInterval? {
+        guard let savedDue else { return nil }
+        let remaining = savedDue.timeIntervalSince(now)
+        if remaining < -interval { return nil }            // missed long ago (e.g. overnight): start fresh
+        if remaining <= 0 { return 90 }                    // missed while closed: check in soon
+        if remaining > interval * 1.5 { return nil }       // stale or interval changed: start fresh
+        return max(30, remaining)
     }
 
     /// Jitter is capped at a quarter of the interval so short intervals aren't dominated by randomness.

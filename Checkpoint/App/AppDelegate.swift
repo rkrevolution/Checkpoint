@@ -267,10 +267,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("  Active hours: \(UserDefaults.standard.bool(forKey: "useActiveHours") ? "on" : "off (always active)")")
         let timer = CheckpointTimer()
         timer.onFire = { [weak self] in self?.handleTimerFire() }
-        timer.start(interval: effectiveInterval)
+        // Remember when the next check-in is due, so a relaunch keeps the schedule
+        timer.onSchedule = { due in AppDelegate.dataDefaults.set(due, forKey: AppDelegate.nextCheckInDueKey) }
+        let resume = CheckpointTimer.resumeDelay(
+            savedDue: AppDelegate.dataDefaults.object(forKey: AppDelegate.nextCheckInDueKey) as? Date,
+            now: Date(), interval: effectiveInterval)
+        if let resume { log.notice("  Keeping the schedule from before the relaunch: first check-in in \(Int(resume))s") }
+        timer.start(interval: effectiveInterval, firstFireIn: resume)
         checkpointTimer = timer
         elapsedSince = Date()
     }
+
+    private static let nextCheckInDueKey = "nextCheckInDue"
 
     // MARK: - Away (Sleep / Display Sleep / Screensaver / Lock)
 
