@@ -10,7 +10,7 @@ Requires Xcode 26.2+ (deployment target macOS 26.2). If `xcode-select` points at
 xcodebuild test -project Checkpoint.xcodeproj -scheme Checkpoint -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
 ```
 
-- `scripts/run.sh [launch args]` builds the current branch (Debug) and launches it, replacing the copy it started before. Launch args set settings for that run only, e.g. `-checkpointInterval 60 -jitterRange 0`.
+- `scripts/run.sh [launch args]` builds the current branch (Debug) and launches it, replacing the copy it started before. Launch args set settings for that run only, e.g. `-checkpointInterval 60 -randomness off`.
 - `scripts/install.sh` builds Release and installs it to `/Applications` (the everyday copy).
 - `scripts/e2e.sh [--quick]` runs the end-to-end test (shows windows on screen while it runs).
 - Builds from the scripts are signed to run locally (no team needed) and take their build number from the git commit count. Debug builds show a DEV badge on the Dock icon.
@@ -57,6 +57,7 @@ Until then:
 - Swift Testing (`@Test`, `#expect`) in `CheckpointTests/CheckpointTests.swift`.
 - Add a test for each bug fix or rule where the logic is testable without UI.
 - Known issue: some tests write to the real `UserDefaults.standard` domain (#16 fixes this). Don't add new tests that do.
+- The test host runs as the real app (same bundle ID and preferences). Don't render or instantiate Settings views in tests: their `@AppStorage` reads and writes the user's real settings (this once reset a user's interval to 1 minute).
 
 ## Workflow
 

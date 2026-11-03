@@ -93,6 +93,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let loginStatus = SMAppService.mainApp.status
         log.notice("applicationDidFinishLaunching — loginItem=\(loginStatus.rawValue == 1 ? "enabled" : "not enabled") (status=\(loginStatus.rawValue))")
 
+        // Convert the old ±seconds jitter setting before defaults are registered
+        Randomness.migrate()
+
         // Register all UserDefaults
         UserDefaults.standard.register(defaults: [
             "checkpointInterval": 2700,
@@ -104,7 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "snoozeMinutes": 5,
             "maxSnoozesPerCheckpoint": 2,
             "afterMaxSnoozeAction": "autoDismiss",
-            "jitterRange": 600,
+            Randomness.key: Randomness.medium.rawValue,
             "playSoundOnCheckpoint": true,
             "soundName": "Glass",
             "respectFocusMode": true,
@@ -261,10 +264,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startTimer() {
         let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
         let effectiveInterval = interval > 0 ? interval : 2700
-        let jitter = UserDefaults.standard.integer(forKey: "jitterRange")
         log.notice("━━━ TIMER STARTING ━━━")
         log.notice("  Base interval: \(Int(effectiveInterval))s (\(Int(effectiveInterval)/60)min)")
-        log.notice("  Jitter range: ±\(jitter/60)min")
+        log.notice("  Randomness: \(Randomness.current().label(for: effectiveInterval), privacy: .public)")
         log.notice("  Active hours: \(UserDefaults.standard.bool(forKey: "useActiveHours") ? "on" : "off (always active)")")
         let timer = CheckpointTimer()
         timer.onFire = { [weak self] in self?.handleTimerFire() }
@@ -774,7 +776,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ("On a call", callDetector.isInCall ? "yes" : "no"),
             ("Focus detected", (focusObserver.isFocusActive ? "yes" : "no") + (respectFocus ? "" : " (not respected)")),
             ("Start at Login", login),
-            ("Interval", "\(UserDefaults.standard.integer(forKey: "checkpointInterval") / 60) min ± random"),
+            ("Interval", {
+                let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
+                return "every \(DurationText.long(interval)), randomness \(Randomness.current().label(for: interval))"
+            }()),
             ("Version", AppInfo.displayString),
             ("Data folder", JSONLinesFile<ParkedThought>.appSupportURL("").path),
         ]

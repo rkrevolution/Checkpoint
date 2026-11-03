@@ -87,7 +87,7 @@ launch() {  # launch <interval seconds>
         --predicate 'subsystem == "com.rkrev.checkpoint"' >>"$LOG" 2>&1 &
     LOG_PID=$!
     sleep 1
-    "$BIN" -checkpointInterval "$1" -jitterRange 0 -hasLaunchedBefore YES \
+    "$BIN" -checkpointInterval "$1" -randomness off -hasLaunchedBefore YES \
         -playSoundOnCheckpoint NO -logResponses NO -fullScreenCheckpoint YES \
         -snoozeMinutes 1 -maxSnoozesPerCheckpoint 3 -respectFocusMode YES \
         -useActiveHours NO -checkpointsEnabled YES -e2eDataDir "$WORK/data" >/dev/null 2>&1 &

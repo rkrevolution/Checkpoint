@@ -12,6 +12,12 @@ final class CheckpointTimer {
 
     private var timer: DispatchSourceTimer?
     private var _nextFireDate: Date?
+    private let defaults: UserDefaults
+
+    /// - Parameter defaults: where the randomness setting is read (a throwaway suite in tests)
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
 
     var nextFireDate: Date? {
         guard timer != nil else { return nil }
@@ -29,10 +35,7 @@ final class CheckpointTimer {
     private func scheduleNext(baseInterval: TimeInterval, delay: Int? = nil) {
         timer?.cancel()
 
-        let jitterRange = Self.effectiveJitterRange(
-            setting: UserDefaults.standard.integer(forKey: "jitterRange"),
-            baseInterval: baseInterval
-        )
+        let jitterRange = Randomness.current(defaults).seconds(for: baseInterval)
         let jitter = jitterRange > 0 ? Int.random(in: -jitterRange...jitterRange) : 0
         let actual = delay ?? max(60, Int(baseInterval) + jitter) // never less than 1 min
 
@@ -69,11 +72,6 @@ final class CheckpointTimer {
         if remaining <= 0 { return 90 }                    // missed while closed: check in soon
         if remaining > interval * 1.5 { return nil }       // stale or interval changed: start fresh
         return max(30, remaining)
-    }
-
-    /// Jitter is capped at a quarter of the interval so short intervals aren't dominated by randomness.
-    nonisolated static func effectiveJitterRange(setting: Int, baseInterval: TimeInterval) -> Int {
-        max(0, min(setting, Int(baseInterval) / 4))
     }
 
     func stop() {

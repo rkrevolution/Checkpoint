@@ -10,7 +10,6 @@ struct NotificationsSettingsView: View {
     @AppStorage("respectFocusMode") private var respectFocusMode = true
     @AppStorage("holdDuringCalls") private var holdDuringCalls = true
 
-    @AppStorage("jitterRange") private var jitterRange = 600
     @AppStorage("showBreathingCue") private var showBreathingCue = false
     @AppStorage("fullScreenCheckpoint") private var fullScreenCheckpoint = false
 
@@ -34,25 +33,6 @@ struct NotificationsSettingsView: View {
                             NSSound(named: NSSound.Name(soundName))?.play()
                         }
                     }
-                }
-            }
-
-            Section("Timing") {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Interval jitter:")
-                        Text("\u{00B1}\(jitterRange / 60) min")
-                            .font(.body.weight(.semibold))
-                            .monospacedDigit()
-                    }
-                    Slider(value: Binding(
-                        get: { Double(jitterRange) / 60.0 },
-                        set: { jitterRange = Int($0) * 60 }
-                    ), in: 0...15, step: 1) {
-                        Text("Jitter")
-                    }
-                    Text("Adds randomness to prevent habituation, up to a quarter of the interval. Set to 0 for exact intervals.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
 

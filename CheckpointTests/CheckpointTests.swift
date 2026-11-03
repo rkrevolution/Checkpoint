@@ -317,61 +317,58 @@ struct CheckpointSessionTests {
 
 struct CheckpointTimerTests {
 
+    /// Throwaway settings, so tests never touch the user's real preferences
+    private func defaults(randomness: Randomness) -> UserDefaults {
+        let d = UserDefaults(suiteName: "timer-\(UUID().uuidString)")!
+        d.set(randomness.rawValue, forKey: Randomness.key)
+        return d
+    }
+
     @Test func nextFireDateNilWhenStopped() async {
         await MainActor.run {
-            let timer = CheckpointTimer()
+            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
             #expect(timer.nextFireDate == nil)
         }
     }
 
     @Test func startSetsNextFireDate() async {
         await MainActor.run {
-            UserDefaults.standard.set(0, forKey: "jitterRange") // no jitter for predictability
-            let timer = CheckpointTimer()
+            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
             timer.start(interval: 300)
-            #expect(timer.nextFireDate != nil)
-            // Fire date should be ~300s from now
             let remaining = timer.nextFireDate!.timeIntervalSinceNow
-            #expect(remaining > 250 && remaining <= 310)
+            #expect(remaining > 290 && remaining <= 301)
             timer.stop()
-            UserDefaults.standard.set(600, forKey: "jitterRange")
         }
     }
 
     @Test func stopClearsFireDate() async {
         await MainActor.run {
-            UserDefaults.standard.set(0, forKey: "jitterRange")
-            let timer = CheckpointTimer()
+            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
             timer.start(interval: 300)
             #expect(timer.nextFireDate != nil)
             timer.stop()
             #expect(timer.nextFireDate == nil)
-            UserDefaults.standard.set(600, forKey: "jitterRange")
         }
     }
 
     @Test func minimumIntervalIs60Seconds() async {
         await MainActor.run {
-            UserDefaults.standard.set(0, forKey: "jitterRange")
-            let timer = CheckpointTimer()
+            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
             timer.start(interval: 10) // way below minimum
-            let remaining = timer.nextFireDate!.timeIntervalSinceNow
-            #expect(remaining >= 55) // at least ~60s (with small timing tolerance)
+            #expect(timer.nextFireDate!.timeIntervalSinceNow >= 55)
             timer.stop()
-            UserDefaults.standard.set(600, forKey: "jitterRange")
         }
     }
 
-    @Test func jitterAffectsFireDate() async {
+    @Test func randomnessStaysWithinItsRange() async {
         await MainActor.run {
-            UserDefaults.standard.set(120, forKey: "jitterRange") // ±2 min jitter
-            let timer = CheckpointTimer()
-            timer.start(interval: 300)
-            let remaining = timer.nextFireDate!.timeIntervalSinceNow
-            // 300 ± min(120, 300/4 = 75), so between 225 and 375
-            #expect(remaining >= 215 && remaining <= 385)
+            let timer = CheckpointTimer(defaults: defaults(randomness: .high))
+            for _ in 0..<20 {
+                timer.start(interval: 900)  // high: ±225 s
+                let remaining = timer.nextFireDate!.timeIntervalSinceNow
+                #expect(remaining >= 900 - 226 && remaining <= 900 + 226)
+            }
             timer.stop()
-            UserDefaults.standard.set(600, forKey: "jitterRange")
         }
     }
 
@@ -392,10 +389,32 @@ struct CheckpointTimerTests {
         #expect(CheckpointTimer.resumeDelay(savedDue: now.addingTimeInterval(5000), now: now, interval: interval) == nil)
     }
 
-    @Test func jitterIsCappedToQuarterOfInterval() {
-        #expect(CheckpointTimer.effectiveJitterRange(setting: 600, baseInterval: 60) == 15)
-        #expect(CheckpointTimer.effectiveJitterRange(setting: 600, baseInterval: 2700) == 600)
-        #expect(CheckpointTimer.effectiveJitterRange(setting: 0, baseInterval: 2700) == 0)
+    @Test func randomnessLabelsShowTheRealRange() {
+        #expect(Randomness.off.label(for: 900) == "Off (exactly every 15 min)")
+        #expect(Randomness.low.label(for: 900) == "Low (±1 min)")
+        #expect(Randomness.medium.label(for: 900) == "Medium (±2 min)")
+        #expect(Randomness.high.label(for: 900) == "High (±4 min)")
+        #expect(Randomness.medium.seconds(for: 2700) == 405)
+    }
+
+    @Test func oldJitterSettingMigratesToNearestLevel() {
+        func migrated(jitter: Int, interval: Int) -> Randomness {
+            let d = UserDefaults(suiteName: "migrate-\(UUID().uuidString)")!
+            d.set(jitter, forKey: Randomness.legacyKey)
+            d.set(interval, forKey: "checkpointInterval")
+            Randomness.migrate(d)
+            return Randomness.current(d)
+        }
+        #expect(migrated(jitter: 60, interval: 900) == .low)      // ±1 min at 15 min
+        #expect(migrated(jitter: 600, interval: 900) == .high)    // was capped at a quarter
+        #expect(migrated(jitter: 0, interval: 900) == .off)
+        #expect(migrated(jitter: 600, interval: 2700) == .high)   // old default at 45 min (22%)
+    }
+
+    @Test func noOldSettingMeansMedium() {
+        let d = UserDefaults(suiteName: "fresh-\(UUID().uuidString)")!
+        Randomness.migrate(d)
+        #expect(Randomness.current(d) == .medium)
     }
 }
 
