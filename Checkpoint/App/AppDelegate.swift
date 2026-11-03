@@ -75,6 +75,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 3. Set dock icon programmatically (sun)
         setDockIcon()
+        #if DEBUG
+        // Make Debug copies unmistakable next to an installed release copy
+        NSApp.dockTile.badgeLabel = "DEV"
+        #endif
+        log.notice("\(AppInfo.displayString, privacy: .public)")
 
         // 5. Setup menu bar status item (running indicator + countdown)
         let sic = StatusItemController(appDelegate: self)

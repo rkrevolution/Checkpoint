@@ -152,6 +152,10 @@ final class StatusItemController {
         let quit = NSMenuItem(title: "Quit Checkpoint", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
 
+        let version = NSMenuItem(title: AppInfo.displayString, action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
+
         return menu
     }
 
