@@ -26,7 +26,7 @@ struct WelcomeView: View {
                 Text("Checkpoint")
                     .font(.system(size: 24, weight: .bold, design: .rounded))
 
-                Text("A gentle tap on the shoulder at regular intervals.\nSee the time, read a question, get back to work.")
+                Text("A tap on the shoulder at unpredictable moments.\nSee the time, answer one question, get back to work.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -67,10 +67,12 @@ struct WelcomeView: View {
 
             // How it works
             VStack(alignment: .leading, spacing: 8) {
-                Label("A prompt appears showing the current time and a grounding question", systemImage: "clock")
-                Label("Tap \"Got it\" to acknowledge and return to work", systemImage: "checkmark.circle")
-                Label("Tap \"Not now\" to snooze for a few minutes", systemImage: "clock.arrow.circlepath")
-                Label("Look for the sun icon in your menu bar for a countdown to the next check-in", systemImage: "sun.max.fill")
+                ForEach(HowItWorks.steps) { step in
+                    Label(step.title, systemImage: step.symbol)
+                }
+                Text("More any time from the menu bar: How Checkpoint Works…")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
             .font(.caption)
             .foregroundStyle(.secondary)

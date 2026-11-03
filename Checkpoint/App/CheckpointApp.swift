@@ -1,8 +1,15 @@
+import Combine
 import SwiftUI
 
-extension EnvironmentValues {
-    /// Opens the "What are you working on?" prompt (used by Settings).
-    @Entry var changeObjective: () -> Void = {}
+/// App actions that SwiftUI views (Settings) can trigger.
+final class AppCommands: ObservableObject {
+    let changeObjective: () -> Void
+    let showHowItWorks: () -> Void
+
+    init(changeObjective: @escaping () -> Void = {}, showHowItWorks: @escaping () -> Void = {}) {
+        self.changeObjective = changeObjective
+        self.showHowItWorks = showHowItWorks
+    }
 }
 
 @main
@@ -16,7 +23,7 @@ struct CheckpointApp: App {
                 .environmentObject(appDelegate.appState)
                 .environmentObject(appDelegate.customStore)
                 .environmentObject(appDelegate.objectiveTracker)
-                .environment(\.changeObjective, { appDelegate.updateObjectiveFromMenu() })
+                .environmentObject(appDelegate.commands)
         }
     }
 }
