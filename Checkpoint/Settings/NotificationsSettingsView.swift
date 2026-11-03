@@ -90,8 +90,10 @@ struct NotificationsSettingsView: View {
             }
 
             Section("Calls") {
-                Toggle("Hold check-ins during calls", isOn: $holdDuringCalls)
-                Text("While any app is using the microphone or camera, check-ins wait and appear quietly when the call ends. The card is always hidden from screen sharing.")
+                Toggle("Wait until calls end", isOn: $holdDuringCalls)
+                Text(holdDuringCalls
+                     ? "On: while any app is using your microphone or camera, a check-in that comes due waits, then appears without sound after the call. Check-ins are not paused or skipped."
+                     : "Off: check-ins appear during calls too (still without showing in screen shares).")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

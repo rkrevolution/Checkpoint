@@ -32,7 +32,7 @@ final class CheckpointWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Check-in"
+        window.title = AppInfo.windowTitle("Check-in")
         window.isReleasedWhenClosed = false
         // Above apps, the Dock and full-screen windows — but below the screensaver
         // and lock screen, which must always win.

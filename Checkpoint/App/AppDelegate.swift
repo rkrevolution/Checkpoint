@@ -20,6 +20,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let parkedThoughts = ParkedThoughts(
         defaults: AppDelegate.dataDefaults, url: AppDelegate.dataURL("parked.jsonl"))
     private var heartbeatTimer: Timer?
+    /// Set once launch setup is done, so the stall check doesn't fire before the timer starts
+    private var launchFinished = false
     private var pauseHotKey: GlobalHotKey?
     let callDetector = CallDetector()
     /// A check-in came due during a call; show it (quietly) when the call ends (#1)
@@ -189,6 +191,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             showWelcome()
         }
+
+        launchFinished = true
+        statusItemController?.updateDisplay()
     }
 
     // MARK: - Welcome & Objective
@@ -799,7 +804,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Why check-ins have stopped when they shouldn't have, or nil if all is well.
     /// A time-blind user won't notice missing check-ins, so the menu bar shows this.
     var stallReason: String? {
-        guard awayReasons.isEmpty, welcomeController == nil else { return nil }
+        guard launchFinished, awayReasons.isEmpty, welcomeController == nil else { return nil }
         let now = Date()
         switch appState.state {
         case .idle:

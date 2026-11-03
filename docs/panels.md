@@ -129,7 +129,7 @@ Clicking the Dock icon opens Settings: it's the app's main window.
 | **Timing (jitter)** | Randomness prevents habituation, capped at a quarter of the interval |
 | **Snooze** | "Not now" is honest about its length and limited, so it can't become permanent avoidance |
 | **Attention** | Full-screen dim for stronger interruption; optional breathing circle |
-| **Calls** | Hold check-ins while the mic or camera is in use; the card is always hidden from screen sharing |
+| **Calls** | "Wait until calls end": while the mic or camera is in use, a due check-in waits and appears without sound after the call (not paused or skipped). The card is always hidden from screen sharing. |
 | **Focus** | Respect macOS Focus. Known issue: detection may not work ([#2](https://github.com/rkrevolution/Checkpoint/issues/2)). |
 
 ### Questions
