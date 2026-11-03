@@ -8,6 +8,7 @@ struct NotificationsSettingsView: View {
     @AppStorage("maxSnoozesPerCheckpoint") private var maxSnoozes = 2
     @AppStorage("afterMaxSnoozeAction") private var afterMaxSnooze = "autoDismiss"
     @AppStorage("respectFocusMode") private var respectFocusMode = true
+    @AppStorage("holdDuringCalls") private var holdDuringCalls = true
 
     @AppStorage("jitterRange") private var jitterRange = 600
     @AppStorage("showBreathingCue") private var showBreathingCue = false
@@ -85,6 +86,12 @@ struct NotificationsSettingsView: View {
 
                 Toggle("Show breathing circle on check-in", isOn: $showBreathingCue)
                 Text("A gentle pulsing circle to help you pause and take a breath.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Calls") {
+                Toggle("Hold check-ins during calls", isOn: $holdDuringCalls)
+                Text("While any app is using the microphone or camera, check-ins wait and appear quietly when the call ends. The card is always hidden from screen sharing.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

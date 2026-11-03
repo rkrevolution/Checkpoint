@@ -39,6 +39,8 @@ final class CheckpointWindowController: NSWindowController {
         // and lock screen, which must always win.
         window.level = .statusBar
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Keep the card (and your objective) out of screen shares and recordings (#1)
+        window.sharingType = .none
         window.center()
         window.isMovableByWindowBackground = true
 
@@ -116,6 +118,7 @@ final class CheckpointWindowController: NSWindowController {
             overlay.backgroundColor = .clear
             overlay.isOpaque = false
             overlay.ignoresMouseEvents = true
+            overlay.sharingType = .none
             overlay.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
 
             let blur = NSVisualEffectView(frame: screen.frame)

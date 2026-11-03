@@ -176,6 +176,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         } else {
             menu.addItem(disabled(stateLabel(state)))
         }
+        if app.checkInHeldForCall {
+            menu.addItem(disabled("On a call: check-in will show when it ends"))
+        } else if app.callDetector.isInCall {
+            menu.addItem(disabled("On a call: check-ins are held"))
+        }
         if let last = app.lastCheckInDate {
             menu.addItem(disabled("Last check-in: \(last.formatted(date: .omitted, time: .shortened))"))
         }
