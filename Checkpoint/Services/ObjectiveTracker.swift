@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import os.log
 
@@ -9,9 +10,9 @@ private let log = Logger(subsystem: "com.rkrev.checkpoint", category: "Objective
 /// sessions are appended to a JSON-lines file. Time away and time the app wasn't
 /// running are excluded, and a session carried into a new day is closed and restarted.
 @MainActor
-final class ObjectiveTracker {
+final class ObjectiveTracker: ObservableObject {
 
-    private(set) var current: ObjectiveSession?
+    @Published private(set) var current: ObjectiveSession?
 
     private let defaults: UserDefaults
     private let now: () -> Date
