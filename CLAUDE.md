@@ -81,7 +81,8 @@ Until then:
 - Swift Testing (`@Test`, `#expect`) in `CheckpointTests/CheckpointTests.swift`.
 - Add a test for each bug fix or rule where the logic is testable without UI.
 - Known issue: some tests write to the real `UserDefaults.standard` domain (#16 fixes this). Don't add new tests that do.
-- The test host runs as the real app (same bundle ID and preferences). Don't render or instantiate Settings views in tests: their `@AppStorage` reads and writes the user's real settings (this once reset a user's interval to 1 minute).
+- The test host runs as the real app (same bundle ID and preferences). Don't render or instantiate Settings views in tests: their `@AppStorage` reads and writes the user's real settings.
+- Never "restore" or change a user's real settings (`defaults write`) without asking; check the app log for who changed a value first (an interval the user set to 1 minute for testing was once wrongly reverted).
 
 ## Workflow
 
