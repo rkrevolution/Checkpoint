@@ -21,6 +21,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         defaults: AppDelegate.dataDefaults, url: AppDelegate.dataURL("parked.jsonl"))
     private var heartbeatTimer: Timer?
     private var pauseHotKey: GlobalHotKey?
+    let callDetector = CallDetector()
+    /// A check-in came due during a call; show it (quietly) when the call ends (#1)
+    private(set) var checkInHeldForCall = false
     /// True while no keyboard or mouse input for `idleThreshold` (counted as away for time on objective)
     private var isIdle = false
     private static let idleThreshold: TimeInterval = 5 * 60
@@ -96,6 +99,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "disabledQuestionIDs": [String](),
             "showBreathingCue": false,
             "fullScreenCheckpoint": false,
+            "holdDuringCalls": true,
             "menuBarDisplay": "objectiveTime",
         ])
 
@@ -147,6 +151,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] in
             self?.togglePause()
         }
+
+        // Hold check-ins while the microphone or camera is in use (#1)
+        callDetector.onChange = { [weak self] inCall in self?.callChanged(inCall: inCall) }
+        callDetector.start()
 
         // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
@@ -267,6 +275,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("━━━ AWAY: \(reason.rawValue, privacy: .public) (reasons=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard !wasAway else { return }
 
+        checkInHeldForCall = false
+
         objectiveTracker.beginAway()
 
         checkpointTimer?.stop()
@@ -317,7 +327,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func handleTimerFire() {
+    private func handleTimerFire(afterCall: Bool = false) {
         log.notice("handleTimerFire: currentState=\(String(describing: self.appState.state))")
 
         guard awayReasons.isEmpty else {
@@ -376,12 +386,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // On a call: hold the check-in and show it when the call ends (#1)
+        if holdsForCall {
+            log.notice("Check-in held: on a call")
+            checkInHeldForCall = true
+            return
+        }
+
         log.notice("  All gates passed ✓")
-        fireCheckpoint()
+        fireCheckpoint(playSound: !afterCall)
     }
 
     /// Builds and presents a checkpoint. Callers are responsible for the schedule/Focus gates.
-    private func fireCheckpoint() {
+    private func fireCheckpoint(playSound: Bool = true) {
         let formatter = DateFormatter()
         formatter.timeStyle = .medium
         log.notice("━━━ CHECKPOINT FIRING ━━━")
@@ -412,7 +429,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
         // Play sound if enabled
-        if UserDefaults.standard.bool(forKey: "playSoundOnCheckpoint") {
+        if playSound, UserDefaults.standard.bool(forKey: "playSoundOnCheckpoint") {
             let soundName = UserDefaults.standard.string(forKey: "soundName") ?? "Glass"
             NSSound(named: NSSound.Name(soundName))?.play()
         }
@@ -552,6 +569,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.appState.transition(to: .idle)
                 return
             }
+            if self.holdsForCall {
+                log.notice("Snoozed check-in held: on a call")
+                self.appState.transition(to: .idle)
+                self.checkInHeldForCall = true
+                return
+            }
             self.presentCheckpoint(session: session, snoozeCount: newCount)
         }
         source.resume()
@@ -622,6 +645,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Only affects time on objective, not check-in scheduling.
     private func checkIdle() {
         guard awayReasons.isEmpty else { return }  // sleep/lock/screensaver already count as away
+        // On a call you're working even without typing
+        if callDetector.isInCall {
+            if isIdle {
+                isIdle = false
+                objectiveTracker.endAway()
+            }
+            return
+        }
         let anyInput = CGEventType(rawValue: ~0)!
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
         if !isIdle, idle >= Self.idleThreshold {
@@ -642,6 +673,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("Reopen: opening Settings")
         openPreferences()
         return false
+    }
+
+    // MARK: - Calls (#1)
+
+    private var holdsForCall: Bool {
+        callDetector.isInCall && UserDefaults.standard.bool(forKey: "holdDuringCalls")
+    }
+
+    private func callChanged(inCall: Bool) {
+        statusItemController?.updateDisplay()
+        guard !inCall, checkInHeldForCall else { return }
+        checkInHeldForCall = false
+        // The held check-in shows now, quietly, if nothing else rules it out
+        if appState.state == .idle {
+            log.notice("Call ended: showing the held check-in")
+            handleTimerFire(afterCall: true)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -922,6 +970,7 @@ extension AppDelegate {
         "checkInNow", "acknowledge", "snooze", "pause",
         "focusOn", "focusOff",
         "screensaverStart", "screensaverStop", "lockStart", "lockStop",
+        "callStart", "callStop", "timerFire",
     ]
 
     private func observeDebugCommands() {
@@ -951,6 +1000,9 @@ extension AppDelegate {
         case "screensaverStop": endAway(.screensaver)
         case "lockStart": beginAway(.screenLocked)
         case "lockStop": endAway(.screenLocked)
+        case "callStart": callDetector.debugOverride = true
+        case "callStop": callDetector.debugOverride = false
+        case "timerFire": handleTimerFire()
         default: log.error("Unknown debug command: \(command, privacy: .public)")
         }
     }

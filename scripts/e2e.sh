@@ -131,6 +131,15 @@ expect_absent "stays away until unlocked" "Timer restarted" 2
 mark; send lockStop
 expect "unlock resumes" "Timer restarted"
 
+echo "Check-in held during a call, shown when it ends"
+mark; send callStart; send timerFire
+expect "check-in is held" "Check-in held: on a call"
+expect_absent "no card during the call" "CHECKPOINT FIRING" 2
+mark; send callStop
+expect "card shows after the call" "CHECKPOINT FIRING"
+mark; send acknowledge
+expect "held check-in completes" "CHECKPOINT COMPLETED"
+
 echo "Focus never overrides a manual pause"
 mark; send pause; send focusOn; send focusOff; send checkInNow
 expect "still paused after Focus on/off" "Manual check-in ignored: state=paused"
