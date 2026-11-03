@@ -25,6 +25,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var todayCheckpointCount = 0
     private var lastCheckpointDate: Date?
+    /// Start of the stretch the checkpoint card reports as "N minutes have passed".
+    /// Reset when the timer (re)starts, on return from away, and when a checkpoint is acknowledged.
+    private var elapsedSince: Date?
     private var todayObjectives: [String] = []
     private var hasShownDaySummary = false
 
@@ -114,10 +117,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showObjectivePrompt() {
         log.notice("showObjectivePrompt")
+        // Start right away: the prompt is optional and can end up buried behind other windows
+        if checkpointTimer == nil {
+            startTimer()
+        }
         let oc = ObjectivePromptController { [weak self] in
             self?.objectiveController = nil
-            log.notice("Objective prompt dismissed, starting timer")
-            self?.startTimer()
+            log.notice("Objective prompt dismissed")
         }
         objectiveController = oc
         oc.show()
@@ -135,6 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         timer.onFire = { [weak self] in self?.handleTimerFire() }
         timer.start(interval: effectiveInterval)
         checkpointTimer = timer
+        elapsedSince = Date()
     }
 
     // MARK: - Away (Sleep / Display Sleep / Screensaver / Lock)
@@ -204,6 +211,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
         let effectiveInterval = interval > 0 ? interval : 2700
         checkpointTimer?.restart(interval: effectiveInterval)
+        elapsedSince = Date()
         log.notice("  Timer restarted with interval \(Int(effectiveInterval))s")
     }
 
@@ -234,6 +242,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             log.notice("Recovering from outsideHours → idle")
             appState.transition(to: .idle)
             hasShownDaySummary = false
+            // Don't report the off-hours gap as elapsed time; fall back to the interval
+            elapsedSince = nil
         }
 
         // Focus is re-checked below on every fire, so don't stay stuck in focusModeActive
@@ -275,31 +285,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        log.notice("  All gates passed ✓")
+        fireCheckpoint()
+    }
+
+    /// Builds and presents a checkpoint. Callers are responsible for the schedule/Focus gates.
+    private func fireCheckpoint() {
         let formatter = DateFormatter()
         formatter.timeStyle = .medium
         log.notice("━━━ CHECKPOINT FIRING ━━━")
         log.notice("  Time: \(formatter.string(from: Date()))")
-        log.notice("  All gates passed ✓")
         appState.transition(to: .triggered)
 
-        let interval = UserDefaults.standard.integer(forKey: "checkpointInterval")
         let count = UserDefaults.standard.integer(forKey: "questionsPerCheckpoint")
         let questions = questionBank.selectQuestions(
             count: count > 0 ? count : 1,
             recentCategoryIds: appState.recentCategoryIds
         )
 
-        let actualElapsed: Int
-        if let last = lastCheckpointDate {
-            actualElapsed = Int(Date().timeIntervalSince(last))
-        } else {
-            actualElapsed = interval > 0 ? interval : 2700
-        }
-
+        // timestamp and elapsed time are filled in at presentation (see presentCheckpoint)
         let session = CheckpointSession(
             id: UUID(),
             timestamp: Date(),
-            intervalSeconds: actualElapsed,
+            intervalSeconds: 0,
             questionsShown: questions,
             responses: questions.map { QuestionResponse(questionId: $0.id, text: "") },
             outcome: .completed
@@ -326,7 +334,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         presentCheckpoint(session: session, snoozeCount: 0)
     }
 
-    private func presentCheckpoint(session: CheckpointSession, snoozeCount: Int) {
+    private func presentCheckpoint(session original: CheckpointSession, snoozeCount: Int) {
         log.notice("presentCheckpoint: snoozeCount=\(snoozeCount)")
         guard awayReasons.isEmpty else {
             log.notice("User away, not presenting")
@@ -336,6 +344,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.transition(to: .presenting)
 
         let interval = UserDefaults.standard.integer(forKey: "checkpointInterval")
+
+        // Show the current time and real elapsed time, also when re-presenting after a snooze
+        let now = Date()
+        let elapsed = elapsedSince.map { Int(now.timeIntervalSince($0)) } ?? (interval > 0 ? interval : 2700)
+        let session = CheckpointSession(
+            id: original.id,
+            timestamp: now,
+            intervalSeconds: elapsed,
+            questionsShown: original.questionsShown,
+            responses: original.responses,
+            outcome: original.outcome
+        )
         let mins = max(1, interval / 60)
         let estimate = "~\(mins) min"
 
@@ -355,6 +375,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 log.notice("  User tapped 'Got it' at \(formatter.string(from: Date()))")
                 log.notice("  Objective updated: \(updatedObjective != nil ? "yes" : "no")")
                 self?.windowController = nil
+                self?.elapsedSince = Date()
                 // Save updated objective if user changed it, show transition toast
                 if let updated = updatedObjective, !updated.isEmpty {
                     let old = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
@@ -561,6 +582,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.objectiveController = nil
             let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
             self?.checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
+            self?.elapsedSince = Date()
             self?.appState.transition(to: .idle)
         }
         objectiveController = oc
@@ -596,11 +618,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         oc.show()
     }
 
+    /// Manual check-in: an explicit request, so it skips the schedule and Focus gates.
     @objc func triggerNow() {
-        // Force a checkpoint immediately regardless of timer
-        guard appState.state == .idle || appState.state == .outsideHours else { return }
+        switch appState.state {
+        case .presenting, .triggered, .paused:
+            return
+        default:
+            break
+        }
+        guard awayReasons.isEmpty else { return }
+        log.notice("Manual check-in")
+        snoozeTimer?.cancel()
+        snoozeTimer = nil
+        resetDayCountersIfNeeded()
         appState.transition(to: .idle)
-        handleTimerFire()
+        fireCheckpoint()
     }
 
     private func nextCheckpointLabel() -> String {
