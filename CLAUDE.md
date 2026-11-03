@@ -28,6 +28,30 @@ xcodebuild test -project Checkpoint.xcodeproj -scheme Checkpoint -destination 'p
 - `docs/panels.md` — why each panel exists, what it shows, when it appears; `docs/ux-flow.md` — user flow and state diagrams (Mermaid) plus the UX review. Update both when a panel or the user loop changes. `docs/research-basis.md` — evidence behind design choices.
 - The Xcode project uses folder-synced groups: adding or deleting a file needs no `project.pbxproj` edit.
 
+## Engineering standards (required)
+
+Every change follows these; reviews check them.
+
+**DRY: one source of truth**
+- One definition per setting key and default, per rule (e.g. "can a check-in show now?"), per user-facing string that appears in several places, and per formatting helper (`DurationText`, `ObjectiveName`, `AppInfo`). Reuse before adding.
+- No copy-pasted logic across paths; extract a shared function or type and test it once.
+
+**CRUD for user data**
+- Every kind of user data (check-in history, objective sessions, parked thoughts, custom questions and categories, goals) has one owning store with a consistent API: **create, read, update, delete**, plus delete-all where the UI offers clearing.
+- The UI offers what users reasonably expect for that data (e.g. delete one history entry, edit a parked thought, fix a wrongly tracked stretch), and "Clear history" clears every kind of history the app keeps.
+- Stores persist atomically, never lose data on a failed write, surface errors (no silent `try?` on user data), and are testable with an injected location. Today's stores don't all meet this yet: #71.
+
+**Swift best practices**
+- Follow the [Swift API Design Guidelines](https://www.swift.org/documentation/api-design-guidelines/) for naming; clarity at the point of use.
+- Value types (`struct`, `enum`) for models; classes only for identity or shared state. Enums instead of string constants for fixed choices.
+- Tightest access control that works (`private` by default); no new globals or singletons beyond system ones.
+- No force unwraps (`!`) or `try!` outside tests and provably safe constants; handle optionals and errors explicitly.
+- Concurrency: UI and app state on the main actor; mark pure helpers `nonisolated`; no data races (the project is moving to Swift 6 checking).
+- Dependency injection (clock, `UserDefaults`, file locations) so logic is unit-testable without the real app or real user data.
+- SwiftUI: views hold no business logic; state lives in observable models; views never write settings as a side effect of appearing.
+- Small, focused types and functions; comments explain *why*, not *what*.
+- New logic comes with tests; CI must pass (lint is tracked in #72).
+
 ## Planned restructure
 
 `AppDelegate.swift` (~1,160 lines) and the raw `UserDefaults` keys are due to be restructured, behaviour-neutral, in the **Code cleanup** milestone: plan [#68](https://github.com/rkrevolution/Checkpoint/issues/68), in order **#16** typed `Settings` → **#17** one `CheckInGate` for "can a check-in show now?" → **#18** split into `CheckInScheduler`, `PresenceMonitor`, `WindowRouter` and `Diagnostics`. Each issue has a detailed plan and acceptance criteria.
