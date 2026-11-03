@@ -61,6 +61,7 @@ struct TodayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header(now)
+                    goalsSection
                     nowSection(now)
                     timeline(sessions, now)
                     checkInSection(checkIns)
@@ -89,6 +90,19 @@ struct TodayView: View {
             Text(now.formatted(date: .omitted, time: .shortened))
                 .font(.system(size: 30, weight: .bold, design: .rounded))
                 .monospacedDigit()
+        }
+    }
+
+    @ViewBuilder
+    private var goalsSection: some View {
+        let goals = Goals.current()
+        if !goals.isEmpty {
+            section("Goals") {
+                ForEach(goals, id: \.self) { goal in
+                    Label(goal, systemImage: "scope")
+                        .font(.system(size: 13))
+                }
+            }
         }
     }
 

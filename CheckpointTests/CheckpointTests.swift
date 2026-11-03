@@ -758,3 +758,15 @@ struct WeekdaysTests {
         #expect(Weekdays.setSkipped(7, skipped: true, in: [7]) == [7])
     }
 }
+
+// MARK: - Goals
+
+struct GoalsTests {
+    @Test func currentSkipsBlankLines() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        defaults.set("  Ship 1.0 ", forKey: "goal1")
+        defaults.set("   ", forKey: "goal2")
+        defaults.set("Run 3× a week", forKey: "goal3")
+        #expect(Goals.current(defaults) == ["Ship 1.0", "Run 3× a week"])
+    }
+}
