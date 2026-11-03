@@ -375,6 +375,23 @@ struct CheckpointTimerTests {
         }
     }
 
+    @Test func relaunchKeepsTheSchedule() {
+        let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+        let interval: TimeInterval = 900
+        // No saved schedule: start normally
+        #expect(CheckpointTimer.resumeDelay(savedDue: nil, now: now, interval: interval) == nil)
+        // Still ahead: keep it
+        #expect(CheckpointTimer.resumeDelay(savedDue: now.addingTimeInterval(400), now: now, interval: interval) == 400)
+        // Very close: at least 30 s
+        #expect(CheckpointTimer.resumeDelay(savedDue: now.addingTimeInterval(5), now: now, interval: interval) == 30)
+        // Came due while closed: shortly after launch
+        #expect(CheckpointTimer.resumeDelay(savedDue: now.addingTimeInterval(-600), now: now, interval: interval) == 90)
+        // Missed long ago (e.g. closed overnight): start fresh
+        #expect(CheckpointTimer.resumeDelay(savedDue: now.addingTimeInterval(-5000), now: now, interval: interval) == nil)
+        // Implausibly far ahead (e.g. interval shortened): start fresh
+        #expect(CheckpointTimer.resumeDelay(savedDue: now.addingTimeInterval(5000), now: now, interval: interval) == nil)
+    }
+
     @Test func jitterIsCappedToQuarterOfInterval() {
         #expect(CheckpointTimer.effectiveJitterRange(setting: 600, baseInterval: 60) == 15)
         #expect(CheckpointTimer.effectiveJitterRange(setting: 600, baseInterval: 2700) == 600)
