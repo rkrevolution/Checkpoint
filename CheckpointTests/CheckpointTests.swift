@@ -524,7 +524,7 @@ struct ObjectiveTrackerTests {
     @Test func tracksActiveTime() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
-        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
         clock.advance(minutes: 40)
         #expect(tracker.activeSeconds() == 40 * 60.0)
     }
@@ -532,7 +532,7 @@ struct ObjectiveTrackerTests {
     @Test func awayTimeIsExcluded() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
-        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
         clock.advance(minutes: 30)
         tracker.beginAway()
         clock.advance(minutes: 20)
@@ -545,7 +545,7 @@ struct ObjectiveTrackerTests {
     @Test func backdatedIdleIsExcluded() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
-        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
         clock.advance(minutes: 30)
         // Idle detected 5 min after the last input: backdate the away period to that input
         tracker.beginAway(at: clock.time.addingTimeInterval(-5 * 60))
@@ -557,7 +557,7 @@ struct ObjectiveTrackerTests {
     @Test func backdatedAwayNeverOverlapsPreviousAway() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
-        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
         clock.advance(minutes: 10)
         tracker.beginAway()
         clock.advance(minutes: 10)
@@ -571,7 +571,7 @@ struct ObjectiveTrackerTests {
     @Test func sameObjectiveKeepsSession() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
-        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
         let id = tracker.current?.id
         clock.advance(minutes: 5)
         tracker.objectiveChanged(to: "  Write report ")
@@ -581,7 +581,7 @@ struct ObjectiveTrackerTests {
     @Test func newObjectiveEndsAndLogsPreviousSession() throws {
         let clock = Clock(morning())
         let (tracker, _, url) = makeTracker(clock: clock)
-        tracker.resume(objective: "Write report", ifThenPlan: "close tabs")
+        tracker.resume(); tracker.objectiveChanged(to: "Write report"); tracker.ifThenPlanChanged(to: "close tabs")
         clock.advance(minutes: 25)
         tracker.objectiveChanged(to: "Email")
         #expect(tracker.current?.objective == "Email")
@@ -597,35 +597,36 @@ struct ObjectiveTrackerTests {
     @Test func downtimeBetweenLaunchesIsExcluded() {
         let clock = Clock(morning())
         let (first, defaults, url) = makeTracker(clock: clock)
-        first.resume(objective: "Write report", ifThenPlan: nil)
+        first.resume(); first.objectiveChanged(to: "Write report")
         clock.advance(minutes: 15)
         first.heartbeat()
         clock.advance(minutes: 60)  // app not running
 
         let (relaunched, _, _) = makeTracker(clock: clock, defaults: defaults, url: url)
-        relaunched.resume(objective: "Write report", ifThenPlan: nil)
+        relaunched.resume()
         clock.advance(minutes: 5)
         #expect(relaunched.activeSeconds() == 20 * 60.0)
     }
 
-    @Test func sessionFromPreviousDayIsRestarted() {
+    @Test func sessionFromPreviousDayIsClosedNotCarriedOver() {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: morning())!
         let clock = Clock(yesterday)
         let (first, defaults, url) = makeTracker(clock: clock)
-        first.resume(objective: "Write report", ifThenPlan: nil)
+        first.resume(); first.objectiveChanged(to: "Write report")
         let oldID = first.current?.id
         clock.time = morning()
 
         let (relaunched, _, _) = makeTracker(clock: clock, defaults: defaults, url: url)
-        relaunched.resume(objective: "Write report", ifThenPlan: nil)
-        #expect(relaunched.current?.id != oldID)
-        #expect(relaunched.activeSeconds() == 0)
+        relaunched.resume()
+        // Yesterday's session is closed, and none starts until the user confirms an objective
+        #expect(relaunched.current == nil)
+        #expect(oldID != nil)
     }
 
     @Test func recentObjectivesAreDistinctAndNewestFirst() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
-        tracker.resume(objective: "Report", ifThenPlan: nil)
+        tracker.resume(); tracker.objectiveChanged(to: "Report")
         for next in ["Email", "Report", "Slides"] {
             clock.advance(minutes: 10)
             tracker.objectiveChanged(to: next)
@@ -637,7 +638,7 @@ struct ObjectiveTrackerTests {
     @Test func emptyObjectiveMeansNoSession() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
-        tracker.resume(objective: "", ifThenPlan: nil)
+        tracker.resume(); tracker.objectiveChanged(to: "")
         #expect(tracker.current == nil)
         #expect(tracker.activeSeconds() == nil)
     }

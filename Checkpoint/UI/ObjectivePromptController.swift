@@ -173,6 +173,7 @@ private struct ObjectivePromptView: View {
                 TextField("e.g. write the distraction down and come back", text: $plan)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
+                    .help("Shown on the check-in card when you answer Drifted")
                     .onSubmit(save)
             }
 
@@ -188,6 +189,7 @@ private struct ObjectivePromptView: View {
                     ))
                     .toggleStyle(.button)
                     .controlSize(.small)
+                    .help("Your guess. Today shows how it compares with the actual time.")
                 }
                 Spacer(minLength: 0)
             }

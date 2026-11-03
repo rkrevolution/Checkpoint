@@ -34,6 +34,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var objectiveController: ObjectivePromptController?
     private var statusItemController: StatusItemController?
     private var todayController: TodayWindowController?
+    private var howItWorksController: HowItWorksWindowController?
+    lazy var commands = AppCommands(
+        changeObjective: { [weak self] in self?.updateObjectiveFromMenu() },
+        showHowItWorks: { [weak self] in self?.showHowItWorks() }
+    )
     private let transitionToast = TransitionToast()
     private var cancellables = Set<AnyCancellable>()
     private var todayCheckpointCount = 0
@@ -103,11 +108,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "menuBarDisplay": "objectiveTime",
         ])
 
-        // Time on the current objective (#24): resume or start the session, then keep it in sync
-        objectiveTracker.resume(
-            objective: UserDefaults.standard.string(forKey: "currentObjective") ?? "",
-            ifThenPlan: UserDefaults.standard.string(forKey: "currentIfThenPlan")
-        )
+        // Time on the current objective (#24): continue today's session, if any, then keep it in sync.
+        // No session today means the objective prompt appears below.
+        objectiveTracker.resume()
         observeObjectiveChanges()
 
         // 1. Give QuestionBank access to custom questions
@@ -593,6 +596,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Settings Observation
 
     // MARK: - Today window
+
+    @objc func showHowItWorks() {
+        let controller = howItWorksController ?? HowItWorksWindowController()
+        howItWorksController = controller
+        controller.show()
+    }
 
     @objc func showTodayFromMenu() {
         showToday(headline: nil)

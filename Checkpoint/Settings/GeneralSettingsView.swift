@@ -6,7 +6,7 @@ struct GeneralSettingsView: View {
     @EnvironmentObject private var customStore: CustomQuestionStore
     @EnvironmentObject private var objectiveTracker: ObjectiveTracker
     @EnvironmentObject private var appState: AppState
-    @Environment(\.changeObjective) private var changeObjective
+    @EnvironmentObject private var commands: AppCommands
     @AppStorage("checkpointInterval") private var intervalSeconds = 2700
     @AppStorage("activeHoursStart") private var activeHoursStart = 8
     @AppStorage("activeHoursEnd") private var activeHoursEnd = 18
@@ -148,10 +148,14 @@ struct GeneralSettingsView: View {
             }
 
             Section {
-                Text(AppInfo.displayString)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                HStack {
+                    Text(AppInfo.displayString)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button("How Checkpoint Works…") { commands.showHowItWorks() }
+                }
             }
         }
         .formStyle(.grouped)
@@ -207,7 +211,7 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button(objectiveTracker.current == nil ? "Set Objective…" : "Change…") {
-                    changeObjective()
+                    commands.changeObjective()
                 }
             }
         }
@@ -275,6 +279,7 @@ struct GeneralSettingsView: View {
     GeneralSettingsView()
         .environmentObject(CustomQuestionStore())
         .environmentObject(AppState())
+        .environmentObject(AppCommands())
         .environmentObject(ObjectiveTracker(
             defaults: UserDefaults(suiteName: "preview")!,
             sessionsURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview-sessions.jsonl")

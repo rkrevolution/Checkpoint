@@ -35,6 +35,32 @@ flowchart TD
     Paused -.->|"menu: Resume → objective prompt"| Objective
 ```
 
+## 1b. Getting back into the loop
+
+Every way out of the loop has a visible way back in, from the menu bar or a panel.
+
+```mermaid
+flowchart TD
+    Launch(["Launch: login, Dock, Spotlight,<br/>or after a quit or crash"]) --> HasToday{"Session for today?"}
+    HasToday -- yes --> Work["Working<br/>time continues (downtime not counted)"]
+    HasToday -- "no (new day or skipped)" --> Prompt["'What are you working on?'<br/>prefilled with the last objective"]
+    Prompt -- Start --> Work
+    Prompt -- Skip --> NoObjective["Check-ins run<br/>menu: 'No objective set'"]
+
+    NoObjective -->|"menu: Set Objective…<br/>Settings › Now: Set Objective…<br/>card: Switched"| Work
+    Work -->|"menu: Change Objective…<br/>card: Switched"| Work
+
+    Work -->|"menu: Pause or ⌃⌥⌘P"| Paused["Paused<br/>menu bar: Paused"]
+    Paused -->|"menu: Resume or ⌃⌥⌘P<br/>(confirms the objective)"| Work
+
+    Work -->|"something got stuck"| Stalled["Menu bar: Check-ins stopped<br/>with the reason"]
+    Stalled -->|"menu: Restart Check-ins"| Work
+
+    Work -.->|"Dock icon"| Settings["Settings<br/>Now section"]
+    Work -.->|"menu: Today…"| Today["Today window"]
+    Work -.->|"menu: How Checkpoint Works…"| Help["How it works panel"]
+```
+
 ## 2. App states
 
 ```mermaid

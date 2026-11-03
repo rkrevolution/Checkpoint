@@ -178,6 +178,7 @@ struct CheckpointView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .keyboardShortcut(.defaultAction)
+                    .help("Still on your objective: back to work (Return)")
 
                     Button {
                         mode = .drifted
@@ -186,6 +187,7 @@ struct CheckpointView: View {
                         Label("Drifted", systemImage: "arrow.uturn.backward")
                             .frame(maxWidth: .infinity)
                     }
+                    .help("Shows your plan and lets you park what pulled you away")
 
                     Button {
                         mode = .switched
@@ -194,6 +196,7 @@ struct CheckpointView: View {
                         Label("Switched", systemImage: "arrow.left.arrow.right")
                             .frame(maxWidth: .infinity)
                     }
+                    .help("Pick what you're working on now. Its time is tracked from here.")
                 }
                 .controlSize(.large)
                 .disabled(!buttonsEnabled)

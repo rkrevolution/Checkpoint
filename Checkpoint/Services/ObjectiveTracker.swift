@@ -39,14 +39,16 @@ final class ObjectiveTracker: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// Call once at launch with the saved objective and if-then plan.
-    func resume(objective: String, ifThenPlan: String?) {
+    /// Call once at launch. Continues today's session (excluding the time the app wasn't
+    /// running); closes a session left over from a previous day. Never starts a new one:
+    /// a session starts only when the user confirms what they're working on.
+    func resume() {
         let t = now()
         let lastSeen = defaults.object(forKey: Self.lastSeenKey) as? Date
 
         if var session = current {
             if !calendar.isDate(session.startedAt, inSameDayAs: t) {
-                // Don't stretch yesterday's session over the night
+                // Don't stretch yesterday's session over the night, or carry it into today
                 end(at: lastSeen ?? session.startedAt)
             } else if let lastSeen, t > lastSeen {
                 // The app wasn't running between lastSeen and now: count it as away
@@ -55,9 +57,6 @@ final class ObjectiveTracker: ObservableObject {
                 current = session
                 save()
             }
-        }
-        if current == nil {
-            start(objective: objective, ifThenPlan: ifThenPlan)
         }
         heartbeat()
     }

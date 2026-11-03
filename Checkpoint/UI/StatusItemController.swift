@@ -113,7 +113,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func tooltip(_ app: AppDelegate) -> String {
         guard let session = app.objectiveTracker.current else { return "Checkpoint" }
-        return "On \(session.objective) for \(DurationText.long(session.activeSeconds(at: Date())))"
+        return "On \(session.objective) for \(DurationText.long(session.activeSeconds(at: Date()))) (not counting time away or idle)"
     }
 
     // MARK: - Menu (built when opened)
@@ -125,7 +125,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         if let reason = app.stallReason {
             menu.addItem(disabled("⚠ Check-ins stopped: \(reason)"))
-            menu.addItem(action("Restart Check-ins", #selector(AppDelegate.restartCheckIns), app))
+            let restart = action("Restart Check-ins", #selector(AppDelegate.restartCheckIns), app)
+            restart.toolTip = "Clears whatever is stuck and starts a fresh interval"
+            menu.addItem(restart)
             menu.addItem(.separator())
         }
 
@@ -140,6 +142,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         let today = action("Today\u{2026}", #selector(AppDelegate.showTodayFromMenu), app)
         today.keyEquivalent = "t"
+        today.toolTip = "Time per objective, estimates vs actual, check-in answers and parked thoughts"
         menu.addItem(today)
         menu.addItem(.separator())
 
@@ -153,8 +156,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         } else {
             menu.addItem(disabled("No objective set"))
         }
-        menu.addItem(action("Update Objective\u{2026}", #selector(AppDelegate.updateObjectiveFromMenu), app))
-        menu.addItem(action("Park a Thought\u{2026}", #selector(AppDelegate.parkThoughtFromMenu), app))
+        // "Set" when nothing is being tracked (skipped, or a new day), so the way back in is obvious
+        let objectiveTitle = app.objectiveTracker.current == nil ? "Set Objective\u{2026}" : "Change Objective\u{2026}"
+        menu.addItem(action(objectiveTitle, #selector(AppDelegate.updateObjectiveFromMenu), app))
+        let park = action("Park a Thought\u{2026}", #selector(AppDelegate.parkThoughtFromMenu), app)
+        park.toolTip = "Write down a distraction to deal with later, then get back to work"
+        menu.addItem(park)
         let open = app.parkedThoughts.open
         if !open.isEmpty {
             let submenu = NSMenu()
@@ -165,6 +172,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 submenu.addItem(item)
             }
             let parked = NSMenuItem(title: "Parked (\(open.count))", action: nil, keyEquivalent: "")
+            parked.toolTip = "Things you parked for later. Click one to mark it done."
             parked.submenu = submenu
             menu.addItem(parked)
         }
@@ -199,6 +207,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(pause)
         menu.addItem(.separator())
 
+        menu.addItem(action("How Checkpoint Works\u{2026}", #selector(AppDelegate.showHowItWorks), app))
         let prefs = action("Preferences…", #selector(AppDelegate.openPreferences), app)
         prefs.keyEquivalent = ","
         menu.addItem(prefs)
