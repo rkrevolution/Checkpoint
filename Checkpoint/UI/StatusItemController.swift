@@ -138,6 +138,11 @@ final class StatusItemController {
         prefs.target = appDelegate
         menu.addItem(prefs)
 
+        #if DEBUG
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(buildDebugMenuItem(appDelegate))
+        #endif
+
         menu.addItem(NSMenuItem.separator())
 
         let quit = NSMenuItem(title: "Quit Checkpoint", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -145,6 +150,28 @@ final class StatusItemController {
 
         return menu
     }
+
+    #if DEBUG
+    private func buildDebugMenuItem(_ appDelegate: AppDelegate) -> NSMenuItem {
+        let submenu = NSMenu()
+        let items: [(String, Selector, Bool)] = [
+            ("Check In in 10 Seconds", #selector(AppDelegate.debugCheckInSoon), false),
+            ("Simulate Screensaver", #selector(AppDelegate.debugToggleScreensaver), appDelegate.debugScreensaverActive),
+            ("Simulate Screen Lock", #selector(AppDelegate.debugToggleScreenLock), appDelegate.debugScreenLocked),
+            ("Simulate Focus", #selector(AppDelegate.debugToggleFocus), appDelegate.focusObserver.isFocusActive),
+            ("Reset First Launch", #selector(AppDelegate.debugResetFirstLaunch), false),
+        ]
+        for (title, action, isOn) in items {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = appDelegate
+            item.state = isOn ? .on : .off
+            submenu.addItem(item)
+        }
+        let debug = NSMenuItem(title: "Debug", action: nil, keyEquivalent: "")
+        debug.submenu = submenu
+        return debug
+    }
+    #endif
 
     private func stateLabel(_ state: CheckpointState) -> String {
         switch state {

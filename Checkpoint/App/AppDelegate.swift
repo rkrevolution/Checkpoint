@@ -614,6 +614,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// MARK: - Debug Menu Actions
+
+#if DEBUG
+extension AppDelegate {
+
+    var debugScreensaverActive: Bool { awayReasons.contains(.screensaver) }
+    var debugScreenLocked: Bool { awayReasons.contains(.screenLocked) }
+
+    /// Goes through the normal fire path (all schedule/Focus/away gates apply).
+    @objc func debugCheckInSoon() {
+        log.notice("DEBUG: check-in in 10s")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            self?.triggerNow()
+        }
+    }
+
+    @objc func debugToggleScreensaver() {
+        debugScreensaverActive ? endAway(.screensaver) : beginAway(.screensaver)
+    }
+
+    @objc func debugToggleScreenLock() {
+        debugScreenLocked ? endAway(.screenLocked) : beginAway(.screenLocked)
+    }
+
+    @objc func debugToggleFocus() {
+        focusObserver.debugSetFocus(!focusObserver.isFocusActive)
+    }
+
+    @objc func debugResetFirstLaunch() {
+        UserDefaults.standard.removeObject(forKey: "hasLaunchedBefore")
+        log.notice("DEBUG: first-launch flag cleared; Welcome shows on next launch")
+    }
+}
+#endif
+
 // MARK: - UserDefaults KVO Extension
 
 extension UserDefaults {
