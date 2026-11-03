@@ -17,7 +17,7 @@ Checkpoint is a lightweight macOS app for people prone to **hyperfocus** — esp
 
 Checkpoint is a **time perception prosthetic**. The ADHD brain has two time modes: *now* and *not now*. Everything that isn't happening right now collapses into an undifferentiated future. Checkpoint's job is to periodically pull the user out of "now" just long enough to re-establish where they are in real time — then let them go back.
 
-> **Core problem:** Hyperfocus causes users to lose track of time, neglect physical needs, and drift from priorities without realizing it. Internal time estimation is impaired — external cues are the evidence-based intervention.
+> **Core problem:** Hyperfocus causes users to lose track of time, neglect physical needs, and drift from priorities without realizing it. Internal time perception is impaired in ADHD (well documented); making time visible at the point of work is the standard clinical recommendation. See `docs/research-basis.md` for the evidence and its limits.
 
 Checkpoint is a **tap on the shoulder**, not a journal. The user reads one question, acknowledges it, and goes back to work. Being intrusive is the point — it has to break through the hyperfocus tunnel.
 
@@ -184,7 +184,7 @@ The modal is intentionally intrusive. This is the core design principle — it m
 └──────────────────────────────────┘
 ```
 
-**Current Objective:** Displayed prominently with an orange target icon and semibold text. Acts as an external implementation intention — the highest-value ADHD intervention (Gollwitzer, 1999; d=0.99 effect size). User can tap "update" to edit inline without dismissing the modal.
+**Current Objective:** Displayed prominently with an orange target icon and semibold text. Acts as a goal reminder and a resumption cue after the interruption (Altmann & Trafton, 2002). It is not yet an implementation intention, which is a specific if-then plan (d = 0.65 across 94 tests, Gollwitzer & Sheeran, 2006; also effective for response inhibition in children with ADHD, Gawrilow & Gollwitzer, 2008); see #32 for adding one. User can tap "update" to edit inline without dismissing the modal.
 
 **Buttons:**
 - **"Got it"** (Return key) — acknowledges and dismisses. Logs as `completed`.
@@ -192,7 +192,7 @@ The modal is intentionally intrusive. This is the core design principle — it m
 
 **No skip button, no text fields.** This is a tap on the shoulder, not a form.
 
-**Breathing cue:** Optional pulsing orange circle (4-second inhale/exhale cycle). Off by default. Supports vagal tone regulation for emotional dysregulation during frustration spirals.
+**Breathing cue:** Optional pulsing orange circle (4-second inhale/exhale cycle). Off by default. Encourages a slow breath during frustration. Slow breathing raises vagally mediated heart rate variability (Laborde et al., 2022), but this small optional cue itself is untested.
 
 **Streak counter:** The footer shows "✓ N checkpoints today" as gentle positive reinforcement. The counter never penalizes — it only rewards showing up. Resets at midnight.
 

@@ -36,6 +36,10 @@ Every checkpoint is logged. Filter by outcome, export to JSON or CSV.
 
 Intervals from 1 min to 2 hours with random jitter. Active hours with overnight ranges. Weekday skipping. Focus/DND awareness — it backs off when macOS says you're busy. Configurable snooze with limits. Menu bar countdown. Start at login. Sleep/wake aware. End-of-day summary. Custom questions. Response history. No network. No telemetry.
 
+## Research basis
+
+Checkpoint is informed by research rather than proven by it. Time perception problems in ADHD are well documented, and its core mechanism (an unpredictable cue to check whether you're on task, with the time made visible) mirrors cued self-monitoring, which works well for children with ADHD. Most direct evidence comes from children, and the app itself hasn't been studied. See [docs/research-basis.md](docs/research-basis.md) for each design choice, the evidence behind it, and how strong it is, including the CBT program for adult ADHD that several planned features draw on.
+
 ## Build
 
 Requires macOS 13+ and Xcode 15+.
