@@ -15,7 +15,6 @@ final class CheckpointWindowController: NSWindowController {
     init(
         session: CheckpointSession,
         currentObjective: String = "",
-        nextCheckpointEstimate: String = "",
         checkpointNumber: Int = 1,
         objectiveSession: ObjectiveSession? = nil,
         recentObjectives: [String] = [],
@@ -33,7 +32,7 @@ final class CheckpointWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Checkpoint"
+        window.title = "Check-in"
         window.isReleasedWhenClosed = false
         // Above apps, the Dock and full-screen windows — but below the screensaver
         // and lock screen, which must always win.
@@ -41,22 +40,13 @@ final class CheckpointWindowController: NSWindowController {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         // Keep the card (and your objective) out of screen shares and recordings (#1)
         window.sharingType = .none
-        window.center()
         window.isMovableByWindowBackground = true
-
-        // Blur background
-        let visualEffect = NSVisualEffectView()
-        visualEffect.material = .hudWindow
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.state = .active
-        window.contentView = visualEffect
 
         super.init(window: window)
 
         let checkpointView = CheckpointView(
             session: session,
             currentObjective: currentObjective,
-            nextCheckpointEstimate: nextCheckpointEstimate,
             checkpointNumber: checkpointNumber,
             objectiveSession: objectiveSession,
             recentObjectives: recentObjectives,
@@ -69,15 +59,14 @@ final class CheckpointWindowController: NSWindowController {
             }
         )
 
+        // Standard window background (follows light/dark mode, per Apple's HIG; HUD style is for
+        // media apps). The window takes the card's size and follows it when the card changes
+        // (e.g. opening Drifted or Switched).
         let hostingView = NSHostingView(rootView: checkpointView)
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
-        visualEffect.addSubview(hostingView)
-        NSLayoutConstraint.activate([
-            hostingView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
-            hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-        ])
+        hostingView.sizingOptions = [.intrinsicContentSize]
+        window.contentView = hostingView
+        window.setContentSize(hostingView.fittingSize)
+        window.center()
     }
 
     @available(*, unavailable)

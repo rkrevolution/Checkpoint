@@ -179,11 +179,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         // Check-in status
-        if state == .idle, let next = app.checkpointTimer?.nextFireDate {
-            menu.addItem(disabled("Next check-in: ~\(max(1, Int(next.timeIntervalSinceNow / 60))) min"))
-        } else {
-            menu.addItem(disabled(stateLabel(state)))
-        }
+        // No "next check-in" time: unpredictable timing is the point
+        menu.addItem(disabled(stateLabel(state)))
         if app.checkInHeldForCall {
             menu.addItem(disabled("On a call: check-in will show when it ends"))
         } else if app.callDetector.isInCall {
@@ -208,7 +205,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(action("How Checkpoint Works\u{2026}", #selector(AppDelegate.showHowItWorks), app))
-        let prefs = action("Preferences…", #selector(AppDelegate.openPreferences), app)
+        let prefs = action("Settings…", #selector(AppDelegate.openPreferences), app)
         prefs.keyEquivalent = ","
         menu.addItem(prefs)
 
@@ -257,7 +254,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func stateLabel(_ state: CheckpointState) -> String {
         switch state {
-        case .idle: return "Running"
+        case .idle: return "Check-ins running"
         case .triggered, .presenting: return "Checkpoint active"
         case .snoozed: return "Snoozed"
         case .paused: return "Paused"

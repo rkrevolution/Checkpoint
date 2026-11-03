@@ -39,10 +39,9 @@ flowchart LR
   - **Today…** (⌘T in the menu).
   - **Now:** objective, "1 h 20 min of ~1 h · since 9:40", if-then plan.
   - **Set / Change Objective…**, **Park a Thought…**, and **Parked (N)** (click one to mark it done).
-  - **Status:** next check-in hint or state, last check-in time, whether a check-in is held for a call.
+  - **Status:** the state (no next-check-in time), last check-in time, whether a check-in is held for a call.
   - **Check In Now**, and **Pause / Resume** (⌃⌥⌘P from any app).
-  - **How Checkpoint Works…**, **Preferences…**, Debug (Debug builds only), **Quit**, version.
-- **Known issue:** "Next check-in: ~N min" gives away the timing ([review](ux-flow.md#3-review-findings)).
+  - **How Checkpoint Works…**, **Settings…**, Debug (Debug builds only), **Quit**, version.
 
 ## Check-in card
 - **Why:** the core intervention. It breaks through hyperfocus at an unpredictable moment (cued self-monitoring), restores time awareness (the real time, time on task), and prompts a quick, honest re-orientation.
@@ -51,21 +50,16 @@ flowchart LR
   1. The time (largest).
   2. Your objective and "for 1 h 40 min · since 9:40" (red once past your estimate).
   3. Goals (one line).
-  4. One grounding question.
-  5. **Right now I'm… On track / Drifted / Switched.**
-  6. **Not now** (snooze) and a count of today's check-ins.
+  4. One grounding question, answered directly with **On track / Drifted / Switched**.
+  5. **Not now** (snooze) and a count of today's check-ins. No "next check-in" time: unpredictability is the point.
 - **Branches:**
   - **On track** (Return): back to work.
   - **Drifted:** shows your if-then plan, with a field to *park* what pulled you away ("distractibility delay").
   - **Switched:** pick a recent objective or type a new one; its time starts from here.
-  - **No objective set** (prompt skipped): asks "What are you working on?" with recent objectives.
+  - **No objective set** (prompt skipped): asks only "What are you working on?" with recent objectives.
 - **Never:** over the screensaver or lock screen, or in screen shares and recordings.
 - **Buttons wait 1.5 s** so a reflexive keypress can't dismiss it.
-- **Known clarity issues:**
-  - Two questions appear at once (the grounding question and "Right now I'm…").
-  - Two durations appear ("since your last check-in" and "for 1 h 40 min").
-  - The no-objective card still shows the three answers.
-  - There's empty space at the bottom.
+- **Window:** titled "Check-in", standard background (follows light and dark mode), sized to its content.
 
 ## Objective prompt ("What are you working on?")
 - **Why:** naming the task turns a vague intention into something the app can hold for you (working memory), time, and remind you of. It's also where you set an estimate (to train time sense) and an if-then plan (an implementation intention).
@@ -75,13 +69,10 @@ flowchart LR
   - From the menu (**Set / Change Objective…**), Settings › Now, or the card's **Switched** (inline).
 - **Shows:**
   - The objective field, with a ⌄ dropdown and **Recent** buttons, so returning to a task is one tap and its time adds up under one name.
-  - **"If I drift, I will…"** with suggestions.
-  - **"Should take about"** 15m / 30m / 1h / 2h.
+  - **More…** (remembers whether you left it open; the label summarizes what's set): **"If I drift, I will…"** with suggestions, and **"Should take about"** 15m / 30m / 1h / 2h.
   - **Skip** and **Start**.
+- **Names:** capitalization and surrounding spaces don't matter ("building the app" is "Building the app"), and a typed name takes the spelling of a matching recent objective.
 - **Never blocks:** check-ins run even if it's ignored or buried.
-- **Known clarity issues:**
-  - Five inputs at first glance.
-  - A name typed in different capitalization counts as a different task.
 
 ## Welcome (first launch only)
 - **Why:** gets you to a working loop in one step: pick an interval, see the four steps, start.
@@ -108,7 +99,7 @@ flowchart LR
 - **Why:** a one-screen reminder of the loop and what happens automatically, for when you return after time away from the app. It doubles as About (version at the bottom).
 - **Shows:** the four steps, the automatic behaviors (calls, away, ⌃⌥⌘P, the stall warning), the version.
 
-## Settings (Dock icon, or menu › Preferences…)
+## Settings (Dock icon, or menu › Settings…)
 Clicking the Dock icon opens Settings: it's the app's main window.
 
 ### General

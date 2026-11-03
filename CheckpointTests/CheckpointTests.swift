@@ -791,6 +791,24 @@ struct ObjectiveTotalsTests {
 }
 
 extension ObjectiveTrackerTests {
+    @Test func namesMatchIgnoringCapitalization() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(); tracker.objectiveChanged(to: "Building the app")
+        let id = tracker.current?.id
+        tracker.objectiveChanged(to: "  building the APP ")
+        #expect(tracker.current?.id == id)  // same task, same stretch
+
+        clock.advance(minutes: 10)
+        tracker.objectiveChanged(to: "Email")
+        clock.advance(minutes: 10)
+        tracker.objectiveChanged(to: "building the app")  // back to it, typed differently
+        #expect(tracker.current?.objective == "Building the app")
+        #expect(tracker.recentObjectives() == ["Building the app", "Email"])
+        let totals = ObjectiveTotals.byObjective(tracker.todaySessions(), at: clock.time)
+        #expect(totals.count == 2)
+    }
+
     @Test func pausedTimeIsNotCounted() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)

@@ -24,7 +24,7 @@ final class ObjectivePromptController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Checkpoint"
+        window.title = "Objective"
         window.isReleasedWhenClosed = false
         window.center()
 
@@ -36,7 +36,7 @@ final class ObjectivePromptController: NSWindowController {
         let view = ObjectivePromptView(
             initialText: existing,
             initialPlan: existingPlan,
-            recentObjectives: recentObjectives.filter { $0 != existing },
+            recentObjectives: recentObjectives.filter { !ObjectiveName.same($0, existing) },
             initialEstimate: initialEstimate,
             greeting: greeting,
             context: context,
@@ -61,7 +61,12 @@ final class ObjectivePromptController: NSWindowController {
             }
         )
 
-        window.contentView = NSHostingView(rootView: view)
+        // The window follows the prompt's size (it grows when More… opens)
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.sizingOptions = [.intrinsicContentSize]
+        window.contentView = hostingView
+        window.setContentSize(hostingView.fittingSize)
+        window.center()
 
         // Handle red X close
         NotificationCenter.default.addObserver(
@@ -103,6 +108,7 @@ private struct ObjectivePromptView: View {
     @State private var text = ""
     @State private var plan = ""
     @State private var estimate: Int?
+    @AppStorage("objectivePromptShowMore") private var showMore = false
     @FocusState private var isFocused: Bool
 
     /// Common if-then plans, from "distractibility delay" and re-orienting strategies.
@@ -175,43 +181,53 @@ private struct ObjectivePromptView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("If I drift, I will… (optional)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Menu("Suggestions") {
-                        ForEach(planSuggestions, id: \.self) { suggestion in
-                            Button(suggestion) { plan = suggestion }
+            // Optional extras, tucked away so the prompt is one field at first glance
+            DisclosureGroup(isExpanded: $showMore) {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("If I drift, I will…")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Menu("Suggestions") {
+                                ForEach(planSuggestions, id: \.self) { suggestion in
+                                    Button(suggestion) { plan = suggestion }
+                                }
+                            }
+                            .menuStyle(.borderlessButton)
+                            .controlSize(.small)
+                            .fixedSize()
                         }
+                        TextField("e.g. write the distraction down and come back", text: $plan)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12))
+                            .help("Shown on the check-in card when you answer Drifted")
+                            .onSubmit(save)
                     }
-                    .menuStyle(.borderlessButton)
-                    .controlSize(.small)
-                    .fixedSize()
-                }
-                TextField("e.g. write the distraction down and come back", text: $plan)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                    .help("Shown on the check-in card when you answer Drifted")
-                    .onSubmit(save)
-            }
 
-            // Estimate (#11): guessing, then seeing the actual time, trains time sense
-            HStack(spacing: 6) {
-                Text("Should take about")
+                    // Estimate (#11): guessing, then seeing the actual time, trains time sense
+                    HStack(spacing: 6) {
+                        Text("Should take about")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        ForEach([15, 30, 60, 120], id: \.self) { minutes in
+                            Toggle(DurationText.short(Double(minutes) * 60), isOn: Binding(
+                                get: { estimate == minutes },
+                                set: { estimate = $0 ? minutes : nil }
+                            ))
+                            .toggleStyle(.button)
+                            .controlSize(.small)
+                            .help("Your guess. Today shows how it compares with the actual time.")
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+                .padding(.top, 6)
+            } label: {
+                Text(moreLabel)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                ForEach([15, 30, 60, 120], id: \.self) { minutes in
-                    Toggle(DurationText.short(Double(minutes) * 60), isOn: Binding(
-                        get: { estimate == minutes },
-                        set: { estimate = $0 ? minutes : nil }
-                    ))
-                    .toggleStyle(.button)
-                    .controlSize(.small)
-                    .help("Your guess. Today shows how it compares with the actual time.")
-                }
-                Spacer(minLength: 0)
             }
 
             HStack {
@@ -243,6 +259,14 @@ private struct ObjectivePromptView: View {
             estimate = initialEstimate
             isFocused = true
         }
+    }
+
+    /// "More: estimate, if-then plan", or a summary of what's set, e.g. "More: ~1h · if-then plan".
+    private var moreLabel: String {
+        var parts: [String] = []
+        if let estimate { parts.append("~" + DurationText.short(Double(estimate) * 60)) }
+        if !trimmed(plan).isEmpty { parts.append("if-then plan") }
+        return parts.isEmpty ? "More: estimate, if-then plan" : "More: " + parts.joined(separator: " · ")
     }
 
     private func save() {
