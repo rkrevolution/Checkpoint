@@ -822,3 +822,15 @@ extension ObjectiveTrackerTests {
         #expect(tracker.activeSeconds() == 30 * 60.0)
     }
 }
+
+// MARK: - Focus pill
+
+struct FocusPillPolicyTests {
+    @Test func showsOnlyWhenEnabledWithObjectiveAndPresent() {
+        #expect(FocusPillPolicy.shouldShow(enabled: true, hasObjective: true, isPaused: false, isAway: false))
+        #expect(!FocusPillPolicy.shouldShow(enabled: false, hasObjective: true, isPaused: false, isAway: false))
+        #expect(!FocusPillPolicy.shouldShow(enabled: true, hasObjective: false, isPaused: false, isAway: false))
+        #expect(!FocusPillPolicy.shouldShow(enabled: true, hasObjective: true, isPaused: true, isAway: false))
+        #expect(!FocusPillPolicy.shouldShow(enabled: true, hasObjective: true, isPaused: false, isAway: true))
+    }
+}

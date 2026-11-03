@@ -31,6 +31,12 @@ flowchart LR
 - **Why not a countdown:** a visible countdown to the next check-in lets you anticipate and brace for it, undoing the unpredictable timing. It's available as a setting, but off by default.
 - **Debug copies:** orange icon.
 
+## Focus strip (optional, off by default)
+- **Why:** keeps what you meant to do in front of you (working memory) without interrupting, for people who don't glance at the menu bar.
+- **Shows:** a small translucent strip at the top of the screen: objective and time on it ("1 h 20 min of ~2 h", red once over the estimate). Same style as the objective-switch toast.
+- **Behaviour:** never takes focus; hidden from screen sharing; hidden while paused, away, or when nothing is tracked. Drag to move (position remembered); double-click to change the objective; **✕** turns it off.
+- **Turn on:** menu › **Show Focus**, or Settings › General › Focus Strip.
+
 ## Menu (click the menu bar item)
 - **Why:** one place for every way into, out of, and back into the loop, so nothing depends on remembering a shortcut.
 - **Shows, top to bottom:**
@@ -38,7 +44,7 @@ flowchart LR
   - **Goals**, if set.
   - **Today…** (⌘T in the menu).
   - **Now:** objective, "1 h 20 min of ~1 h · since 9:40", if-then plan.
-  - **Set / Change Objective…**, **Park a Thought…**, and **Parked (N)** (click one to mark it done).
+  - **Set / Change Objective…**, **Show Focus** (the focus strip), **Park a Thought…**, and **Parked (N)** (click one to mark it done).
   - **Status:** the state (no next-check-in time), last check-in time, whether a check-in is held for a call.
   - **Check In Now**, and **Pause / Resume** (⌃⌥⌘P from any app).
   - **How Checkpoint Works…**, **Settings…**, Debug (Debug builds only), **Quit**, version.
