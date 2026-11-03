@@ -15,6 +15,7 @@ struct GeneralSettingsView: View {
     @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
     @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
     @AppStorage("showFocusPill") private var showFocusPill = false
+    @State private var showDiagnostics = false
     @AppStorage("goal1") private var goal1 = ""
     @AppStorage("goal2") private var goal2 = ""
     @AppStorage("goal3") private var goal3 = ""
@@ -153,6 +154,41 @@ struct GeneralSettingsView: View {
                 Text("See exactly what a checkpoint looks like with your current settings.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                // Tucked away on purpose: knowing when the next check-in comes lets you brace for it
+                DisclosureGroup("Diagnostics", isExpanded: $showDiagnostics) {
+                    TimelineView(.periodic(from: .now, by: 5)) { _ in
+                        let rows = commands.diagnostics()
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(rows, id: \.label) { row in
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text(row.label)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 120, alignment: .leading)
+                                    Text(row.value)
+                                        .textSelection(.enabled)
+                                }
+                                .font(.system(size: 11).monospacedDigit())
+                            }
+                            HStack {
+                                Text("For checking that things work. Knowing when check-ins come makes them less effective, so this stays collapsed.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                                Spacer()
+                                Button("Copy") {
+                                    let text = rows.map { "\($0.label): \($0.value)" }.joined(separator: "\n")
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(text, forType: .string)
+                                }
+                                .controlSize(.small)
+                            }
+                            .padding(.top, 4)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
             }
 
             Section {

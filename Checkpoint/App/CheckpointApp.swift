@@ -5,10 +5,15 @@ import SwiftUI
 final class AppCommands: ObservableObject {
     let changeObjective: () -> Void
     let showHowItWorks: () -> Void
+    /// Label/value rows describing what the app is doing right now (Settings › Diagnostics).
+    let diagnostics: () -> [(label: String, value: String)]
 
-    init(changeObjective: @escaping () -> Void = {}, showHowItWorks: @escaping () -> Void = {}) {
+    init(changeObjective: @escaping () -> Void = {},
+         showHowItWorks: @escaping () -> Void = {},
+         diagnostics: @escaping () -> [(label: String, value: String)] = { [] }) {
         self.changeObjective = changeObjective
         self.showHowItWorks = showHowItWorks
+        self.diagnostics = diagnostics
     }
 }
 

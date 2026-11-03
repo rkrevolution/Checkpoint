@@ -45,7 +45,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     lazy var commands = AppCommands(
         changeObjective: { [weak self] in self?.updateObjectiveFromMenu() },
-        showHowItWorks: { [weak self] in self?.showHowItWorks() }
+        showHowItWorks: { [weak self] in self?.showHowItWorks() },
+        diagnostics: { [weak self] in self?.diagnostics() ?? [] }
     )
     private let transitionToast = TransitionToast()
     private var cancellables = Set<AnyCancellable>()
@@ -732,6 +733,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("Reopen: opening Settings")
         openPreferences()
         return false
+    }
+
+    // MARK: - Diagnostics
+
+    /// When the next check-in will appear, or why none is scheduled. For Diagnostics and the
+    /// Debug menu only: showing it in everyday UI would let users brace for check-ins.
+    var nextCheckInDescription: String {
+        if !awayReasons.isEmpty { return "none while away" }
+        switch appState.state {
+        case .paused: return "none while paused"
+        case .presenting, .triggered: return "a check-in is showing now"
+        case .snoozed(let until, _): return "snoozed until \(until.formatted(date: .omitted, time: .standard))"
+        default: break
+        }
+        guard let next = checkpointTimer?.nextFireDate else { return "timer not running" }
+        let mins = max(0, Int(next.timeIntervalSinceNow / 60))
+        var text = "\(next.formatted(date: .omitted, time: .standard)) (in about \(mins) min)"
+        if checkInHeldForCall { text += ", one held until the call ends" }
+        return text
+    }
+
+    func diagnostics() -> [(label: String, value: String)] {
+        let respectFocus = UserDefaults.standard.bool(forKey: "respectFocusMode")
+        let login: String
+        switch SMAppService.mainApp.status {
+        case .enabled: login = "on"
+        case .requiresApproval: login = "needs approval in System Settings › General › Login Items"
+        case .notRegistered: login = "off"
+        case .notFound: login = "not found (unsigned or moved build?)"
+        @unknown default: login = "unknown"
+        }
+        return [
+            ("Next check-in", nextCheckInDescription),
+            ("Last check-in", lastCheckpointDate?.formatted(date: .omitted, time: .standard) ?? "none since launch"),
+            ("State", String(describing: appState.state)),
+            ("Stall check", stallReason ?? "OK"),
+            ("Away", awayReasons.isEmpty ? "no" : awayReasons.map(\.rawValue).sorted().joined(separator: ", ")),
+            ("Idle (5+ min)", isIdle ? "yes" : "no"),
+            ("On a call", callDetector.isInCall ? "yes" : "no"),
+            ("Focus detected", (focusObserver.isFocusActive ? "yes" : "no") + (respectFocus ? "" : " (not respected)")),
+            ("Start at Login", login),
+            ("Interval", "\(UserDefaults.standard.integer(forKey: "checkpointInterval") / 60) min ± random"),
+            ("Version", AppInfo.displayString),
+            ("Data folder", JSONLinesFile<ParkedThought>.appSupportURL("").path),
+        ]
     }
 
     // MARK: - Focus pill
