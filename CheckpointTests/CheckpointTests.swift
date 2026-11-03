@@ -497,3 +497,124 @@ struct CSVExportTests {
         #expect(HistorySettingsView.csvField("a, b\nc") == "\"a, b\nc\"")
     }
 }
+
+// MARK: - ObjectiveTracker Tests (isolated defaults, fake clock)
+
+@MainActor
+struct ObjectiveTrackerTests {
+
+    final class Clock {
+        var time: Date
+        init(_ time: Date) { self.time = time }
+        func advance(minutes: Double) { time = time.addingTimeInterval(minutes * 60) }
+    }
+
+    private func makeTracker(clock: Clock, defaults: UserDefaults? = nil, url: URL? = nil) -> (ObjectiveTracker, UserDefaults, URL) {
+        let d = defaults ?? UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let u = url ?? FileManager.default.temporaryDirectory.appendingPathComponent("sessions-\(UUID().uuidString).jsonl")
+        return (ObjectiveTracker(defaults: d, now: { clock.time }, sessionsURL: u), d, u)
+    }
+
+    /// 10:00 today (whole seconds, so durations compare exactly), so tests don't cross midnight
+    private func morning() -> Date {
+        let date = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: Date())!
+        return Date(timeIntervalSinceReferenceDate: date.timeIntervalSinceReferenceDate.rounded())
+    }
+
+    @Test func tracksActiveTime() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        clock.advance(minutes: 40)
+        #expect(tracker.activeSeconds() == 40 * 60.0)
+    }
+
+    @Test func awayTimeIsExcluded() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        clock.advance(minutes: 30)
+        tracker.beginAway()
+        clock.advance(minutes: 20)
+        #expect(tracker.activeSeconds() == 30 * 60.0)  // still away
+        tracker.endAway()
+        clock.advance(minutes: 10)
+        #expect(tracker.activeSeconds() == 40 * 60.0)
+    }
+
+    @Test func sameObjectiveKeepsSession() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        let id = tracker.current?.id
+        clock.advance(minutes: 5)
+        tracker.objectiveChanged(to: "  Write report ")
+        #expect(tracker.current?.id == id)
+    }
+
+    @Test func newObjectiveEndsAndLogsPreviousSession() throws {
+        let clock = Clock(morning())
+        let (tracker, _, url) = makeTracker(clock: clock)
+        tracker.resume(objective: "Write report", ifThenPlan: "close tabs")
+        clock.advance(minutes: 25)
+        tracker.objectiveChanged(to: "Email")
+        #expect(tracker.current?.objective == "Email")
+        #expect(tracker.current?.ifThenPlan == "close tabs")
+        let logged = try JSONLinesFile<ObjectiveSession>(url: url).loadAll()
+        #expect(logged.count == 1)
+        let first = try #require(logged.first)
+        #expect(first.objective == "Write report")
+        #expect(first.activeSeconds(at: clock.time) == 25 * 60.0)
+        #expect(tracker.todaySessions().map(\.objective) == ["Write report", "Email"])
+    }
+
+    @Test func downtimeBetweenLaunchesIsExcluded() {
+        let clock = Clock(morning())
+        let (first, defaults, url) = makeTracker(clock: clock)
+        first.resume(objective: "Write report", ifThenPlan: nil)
+        clock.advance(minutes: 15)
+        first.heartbeat()
+        clock.advance(minutes: 60)  // app not running
+
+        let (relaunched, _, _) = makeTracker(clock: clock, defaults: defaults, url: url)
+        relaunched.resume(objective: "Write report", ifThenPlan: nil)
+        clock.advance(minutes: 5)
+        #expect(relaunched.activeSeconds() == 20 * 60.0)
+    }
+
+    @Test func sessionFromPreviousDayIsRestarted() {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: morning())!
+        let clock = Clock(yesterday)
+        let (first, defaults, url) = makeTracker(clock: clock)
+        first.resume(objective: "Write report", ifThenPlan: nil)
+        let oldID = first.current?.id
+        clock.time = morning()
+
+        let (relaunched, _, _) = makeTracker(clock: clock, defaults: defaults, url: url)
+        relaunched.resume(objective: "Write report", ifThenPlan: nil)
+        #expect(relaunched.current?.id != oldID)
+        #expect(relaunched.activeSeconds() == 0)
+    }
+
+    @Test func emptyObjectiveMeansNoSession() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(objective: "", ifThenPlan: nil)
+        #expect(tracker.current == nil)
+        #expect(tracker.activeSeconds() == nil)
+    }
+}
+
+struct DurationTextTests {
+    @Test func longForm() {
+        #expect(DurationText.long(20) == "under 1 min")
+        #expect(DurationText.long(45 * 60) == "45 min")
+        #expect(DurationText.long(120 * 60) == "2 h")
+        #expect(DurationText.long(160 * 60) == "2 h 40 min")
+    }
+
+    @Test func shortForm() {
+        #expect(DurationText.short(20) == "<1m")
+        #expect(DurationText.short(160 * 60) == "2h40m")
+    }
+}
