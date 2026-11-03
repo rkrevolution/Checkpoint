@@ -22,7 +22,7 @@ enum HowItWorks {
     ]
 
     static let automatic = [
-        "Holds check-ins during calls and shows them when you hang up",
+        "Waits during calls and shows the check-in after you hang up",
         "Pauses while you're away (sleep, lock, screensaver) and hides from screen sharing",
         "Press ⌃⌥⌘P in any app to pause or resume",
         "Warns in the menu bar if check-ins ever stop",
@@ -39,7 +39,7 @@ final class HowItWorksWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "How Checkpoint Works"
+        window.title = AppInfo.windowTitle("How It Works")
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)

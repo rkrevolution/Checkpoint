@@ -24,7 +24,7 @@ final class ObjectivePromptController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.title = "Objective"
+        window.title = AppInfo.windowTitle("Objective")
         window.isReleasedWhenClosed = false
         window.center()
 

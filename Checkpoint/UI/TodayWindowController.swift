@@ -16,11 +16,7 @@ final class TodayWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        #if DEBUG
-        window.title = "Today (Debug)"
-        #else
-        window.title = "Today"
-        #endif
+        window.title = AppInfo.windowTitle("Today")
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)

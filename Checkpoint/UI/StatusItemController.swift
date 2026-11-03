@@ -186,9 +186,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         // No "next check-in" time: unpredictable timing is the point
         menu.addItem(disabled(stateLabel(state)))
         if app.checkInHeldForCall {
-            menu.addItem(disabled("On a call: check-in will show when it ends"))
+            menu.addItem(disabled("On a call: your check-in will show when it ends"))
         } else if app.callDetector.isInCall {
-            menu.addItem(disabled("On a call: check-ins are held"))
+            menu.addItem(disabled("On a call: check-ins wait until it ends"))
         }
         if let last = app.lastCheckInDate {
             menu.addItem(disabled("Last check-in: \(last.formatted(date: .omitted, time: .shortened))"))
