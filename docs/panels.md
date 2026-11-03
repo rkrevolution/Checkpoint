@@ -115,7 +115,7 @@ Clicking the Dock icon opens Settings: it's the app's main window.
 | **Goals** | Up to three lines kept in view in the menu, on cards and in Today. Goals only help when visible at the moment you decide. |
 | **Start at Login** | The prosthetic only works if it's always running. Also mentions ⌃⌥⌘P. |
 | **Enable Checkpoints** | Master switch. Known issue: overlaps with Pause. |
-| **Check-in Interval** | How often, roughly (randomized around it) |
+| **Check-ins: Every, Randomness** | How often, and how much the timing varies (Off / Low / Medium / High, labelled with the real range at the current interval, e.g. "Medium (±2 min)"). Directly under Now because it's the main setting. |
 | **Active Hours, Check in on** | Keep it quiet outside work hours and on days off |
 | **Menu Bar** | Time on objective (default) or a countdown |
 | **Questions per Check-in** | 1–3 grounding questions. Known issue: more than one adds load. |
@@ -127,7 +127,6 @@ Clicking the Dock icon opens Settings: it's the app's main window.
 | Section | Why it exists |
 |---|---|
 | **Sound** | An audible cue helps break hyperfocus. Skipped for check-ins held during a call. |
-| **Timing (jitter)** | Randomness prevents habituation, capped at a quarter of the interval |
 | **Snooze** | "Not now" is honest about its length and limited, so it can't become permanent avoidance |
 | **Attention** | Full-screen dim for stronger interruption; optional breathing circle |
 | **Calls** | "Wait until calls end": while the mic or camera is in use, a due check-in waits and appears without sound after the call (not paused or skipped). The card is always hidden from screen sharing. |

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Build the current branch (Debug) and launch it, replacing any copy this script started before.
 # Extra arguments are passed to the app as launch-argument settings, e.g.:
-#   scripts/run.sh -checkpointInterval 60 -jitterRange 0
+#   scripts/run.sh -checkpointInterval 60 -randomness off
 # (Launch-argument settings apply to that run only; saved preferences aren't changed.)
 set -euo pipefail
 

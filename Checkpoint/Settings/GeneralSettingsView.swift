@@ -15,6 +15,7 @@ struct GeneralSettingsView: View {
     @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
     @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
     @AppStorage("showFocusPill") private var showFocusPill = false
+    @AppStorage(Randomness.key) private var randomness = Randomness.medium.rawValue
     @State private var showDiagnostics = false
     @AppStorage("goal1") private var goal1 = ""
     @AppStorage("goal2") private var goal2 = ""
@@ -30,47 +31,24 @@ struct GeneralSettingsView: View {
         Form {
             nowSection
 
-            Section("Goals") {
-                TextField("Goal 1", text: $goal1, prompt: Text("e.g. Ship Checkpoint 1.0"))
-                TextField("Goal 2", text: $goal2, prompt: Text("e.g. Run 3× a week"))
-                TextField("Goal 3", text: $goal3, prompt: Text("Optional"))
-                Text("Up to three, kept in view in the menu, on check-ins and in Today.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                Toggle("Start at Login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        do {
-                            if newValue {
-                                try SMAppService.mainApp.register()
-                            } else {
-                                try SMAppService.mainApp.unregister()
-                            }
-                        } catch {
-                            // Revert toggle on failure
-                            launchAtLogin = !newValue
-                        }
-                    }
-                Text("Automatically start Checkpoint when you log in to your Mac. Press ⌃⌥⌘P in any app to pause or resume check-ins.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                Toggle("Enable Checkpoints", isOn: $checkpointsEnabled)
-            }
-
-            Section("Check-in Interval") {
+            Section("Check-ins") {
+                // Shows the nearest option for an unlisted value, but only saves when the user picks one
                 Picker("Every", selection: Binding(
-                    get: { intervalSeconds / 60 },
+                    get: { nearestIntervalOption(to: intervalSeconds / 60) },
                     set: { intervalSeconds = $0 * 60 }
                 )) {
                     ForEach(intervalOptions, id: \.self) { mins in
                         Text(intervalLabel(mins)).tag(mins)
                     }
                 }
+                Picker("Randomness", selection: $randomness) {
+                    ForEach(Randomness.allCases) { level in
+                        Text(level.label(for: TimeInterval(intervalSeconds))).tag(level.rawValue)
+                    }
+                }
+                Text("Check-ins come at unpredictable times around the interval, so you can't brace for them. The range adjusts with the interval.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Active Hours") {
@@ -117,6 +95,38 @@ struct GeneralSettingsView: View {
                         .controlSize(.small)
                     }
                 }
+            }
+
+            Section("Goals") {
+                TextField("Goal 1", text: $goal1, prompt: Text("e.g. Ship Checkpoint 1.0"))
+                TextField("Goal 2", text: $goal2, prompt: Text("e.g. Run 3× a week"))
+                TextField("Goal 3", text: $goal3, prompt: Text("Optional"))
+                Text("Up to three, kept in view in the menu, on check-ins and in Today.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Start at Login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            // Revert toggle on failure
+                            launchAtLogin = !newValue
+                        }
+                    }
+                Text("Automatically start Checkpoint when you log in to your Mac. Press ⌃⌥⌘P in any app to pause or resume check-ins.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Enable Checkpoints", isOn: $checkpointsEnabled)
             }
 
             Section("Focus Strip") {
@@ -207,13 +217,7 @@ struct GeneralSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             launchAtLogin = SMAppService.mainApp.status == .enabled
-
-            // Snap to nearest option if current value isn't in the list
-            let currentMins = intervalSeconds / 60
-            if !intervalOptions.contains(currentMins) {
-                let nearest = intervalOptions.min(by: { abs($0 - currentMins) < abs($1 - currentMins) }) ?? 45
-                intervalSeconds = nearest * 60
-            }
+            // Opening Settings never changes a setting (it used to "snap" the interval here)
         }
     }
 
@@ -294,6 +298,10 @@ struct GeneralSettingsView: View {
         )
         previewController = wc
         wc.showWithFade()
+    }
+
+    private func nearestIntervalOption(to mins: Int) -> Int {
+        intervalOptions.min { abs($0 - mins) < abs($1 - mins) } ?? 45
     }
 
     private func intervalLabel(_ mins: Int) -> String {
