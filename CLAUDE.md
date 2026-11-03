@@ -25,6 +25,7 @@ xcodebuild test -project Checkpoint.xcodeproj -scheme Checkpoint -destination 'p
 - `Checkpoint/UI` — checkpoint card and window controllers, menu bar item, prompts.
 - `Checkpoint/Settings` — the Preferences tabs.
 - `Checkpoint/Resources/questions.json` — built-in questions; the source of truth for categories.
+- `docs/ux-flow.md` — user flow and state diagrams (Mermaid) plus the UX review; update the diagrams when the user loop changes. `docs/research-basis.md` — evidence behind design choices.
 - The Xcode project uses folder-synced groups: adding or deleting a file needs no `project.pbxproj` edit.
 
 ## Rules

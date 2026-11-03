@@ -2,7 +2,7 @@ import Foundation
 
 /// One stretch of work on an objective. Active time excludes time away
 /// (sleep, lock, screensaver) and time the app wasn't running.
-struct ObjectiveSession: Codable, Equatable, Identifiable {
+nonisolated struct ObjectiveSession: Codable, Equatable, Identifiable {
     let id: UUID
     let objective: String
     var ifThenPlan: String?

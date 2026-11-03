@@ -38,7 +38,7 @@ Intervals from 1 min to 2 hours with random jitter. Active hours with overnight 
 
 ## Research basis
 
-Checkpoint is informed by research rather than proven by it. Time perception problems in ADHD are well documented, and its core mechanism (an unpredictable cue to check whether you're on task, with the time made visible) mirrors cued self-monitoring, which works well for children with ADHD. Most direct evidence comes from children, and the app itself hasn't been studied. See [docs/research-basis.md](docs/research-basis.md) for each design choice, the evidence behind it, and how strong it is, including the CBT program for adult ADHD that several planned features draw on.
+Checkpoint is informed by research rather than proven by it. Time perception problems in ADHD are well documented, and its core mechanism (an unpredictable cue to check whether you're on task, with the time made visible) mirrors cued self-monitoring, which works well for children with ADHD. Most direct evidence comes from children, and the app itself hasn't been studied. The user flow, app states and UX review are in [docs/ux-flow.md](docs/ux-flow.md). See [docs/research-basis.md](docs/research-basis.md) for each design choice, the evidence behind it, and how strong it is, including the CBT program for adult ADHD that several planned features draw on.
 
 ## Build
 
