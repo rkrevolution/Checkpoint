@@ -1,5 +1,8 @@
 import AppKit
+import os.log
 import SwiftUI
+
+private let log = Logger(subsystem: "com.rkrev.checkpoint", category: "CheckpointWindowController")
 
 final class CheckpointWindowController: NSWindowController {
 
@@ -140,18 +143,38 @@ final class CheckpointWindowController: NSWindowController {
             completion()
             return
         }
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
-            for overlay in overlayWindows {
+        let overlays = overlayWindows
+        animate(duration: 0.2, { _ in
+            for overlay in overlays {
                 overlay.animator().alphaValue = 0
             }
-        }, completionHandler: { [weak self] in
-            for overlay in self?.overlayWindows ?? [] {
+        }, completion: { [weak self] in
+            for overlay in overlays {
                 overlay.close()
             }
             self?.overlayWindows.removeAll()
             completion()
         })
+    }
+
+    /// Runs an animation, then `completion` exactly once: when the animation ends, or shortly
+    /// after its duration if AppKit never calls the completion handler. A missed callback must
+    /// never leave the app stuck presenting a checkpoint.
+    private func animate(
+        duration: TimeInterval,
+        _ animations: @escaping (NSAnimationContext) -> Void,
+        completion: @escaping () -> Void
+    ) {
+        let once = RunOnce(completion)
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = duration
+            animations(context)
+        }, completionHandler: {
+            MainActor.assumeIsolated { once.run() }
+        })
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.5) {
+            once.run()
+        }
     }
 
     /// Removes the card and any overlays immediately, without calling onDone/onSnooze.
@@ -165,33 +188,48 @@ final class CheckpointWindowController: NSWindowController {
         overlayWindows.removeAll()
     }
 
+    #if DEBUG
+    /// Same as pressing "Got it" / "Not now" (used by the e2e test script).
+    func debugAcknowledge() { dismissModal(with: session, updatedObjective: nil) }
+    func debugSnooze() { dismissModalForSnooze() }
+    #endif
+
     private func dismissModal(with session: CheckpointSession, updatedObjective: String?) {
-        guard !dismissed else { return }
-        dismissed = true
-        guard let window else { return }
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
-            window.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            window.close()
-            self?.dismissOverlays {
-                self?.onDone?(session, updatedObjective)
-            }
-        })
+        fadeOutAndClose { [weak self] in
+            self?.onDone?(session, updatedObjective)
+        }
     }
 
     private func dismissModalForSnooze() {
-        guard !dismissed else { return }
+        fadeOutAndClose { [weak self] in
+            self?.onSnooze?()
+        }
+    }
+
+    private func fadeOutAndClose(then action: @escaping () -> Void) {
+        log.notice("fadeOutAndClose: dismissed=\(self.dismissed)")
+        guard !dismissed, let window else { return }
         dismissed = true
-        guard let window else { return }
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.2
+        animate(duration: 0.2, { _ in
             window.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
+        }, completion: { [weak self] in
             window.close()
-            self?.dismissOverlays {
-                self?.onSnooze?()
-            }
+            self?.dismissOverlays(completion: action)
         })
+    }
+}
+
+/// Calls a closure at most once, however many times `run()` is called.
+private final class RunOnce {
+    private var action: (() -> Void)?
+
+    init(_ action: @escaping () -> Void) {
+        self.action = action
+    }
+
+    func run() {
+        let pending = action
+        action = nil
+        pending?()
     }
 }

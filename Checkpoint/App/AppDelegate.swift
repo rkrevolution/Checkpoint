@@ -83,6 +83,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 6. Pause while the user is away: system sleep, display sleep, screensaver, screen lock
         observeAwayEvents()
+        #if DEBUG
+        observeDebugCommands()
+        #endif
 
         // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
@@ -176,7 +179,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func beginAway(_ reason: AwayReason) {
         let wasAway = !awayReasons.isEmpty
         awayReasons.insert(reason)
-        log.notice("━━━ AWAY: \(reason.rawValue) (reasons=\(self.awayReasons.map(\.rawValue))) ━━━")
+        log.notice("━━━ AWAY: \(reason.rawValue, privacy: .public) (reasons=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard !wasAway else { return }
 
         checkpointTimer?.stop()
@@ -197,7 +200,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func endAway(_ reason: AwayReason) {
         guard awayReasons.remove(reason) != nil else { return }
-        log.notice("━━━ BACK: \(reason.rawValue) (remaining=\(self.awayReasons.map(\.rawValue))) ━━━")
+        log.notice("━━━ BACK: \(reason.rawValue, privacy: .public) (remaining=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard awayReasons.isEmpty else { return }
 
         // If user had manually paused, respect that
@@ -230,7 +233,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("handleTimerFire: currentState=\(String(describing: self.appState.state))")
 
         guard awayReasons.isEmpty else {
-            log.notice("User away (\(self.awayReasons.map(\.rawValue))), skipping")
+            log.notice("User away (\(self.awayReasons.map(\.rawValue), privacy: .public)), skipping")
             return
         }
 
@@ -622,11 +625,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func triggerNow() {
         switch appState.state {
         case .presenting, .triggered, .paused:
+            log.notice("Manual check-in ignored: state=\(String(describing: self.appState.state), privacy: .public)")
             return
         default:
             break
         }
-        guard awayReasons.isEmpty else { return }
+        guard awayReasons.isEmpty else {
+            log.notice("Manual check-in ignored: user away")
+            return
+        }
         log.notice("Manual check-in")
         snoozeTimer?.cancel()
         snoozeTimer = nil
@@ -668,6 +675,45 @@ extension AppDelegate {
 
     @objc func debugToggleFocus() {
         focusObserver.debugSetFocus(!focusObserver.isFocusActive)
+    }
+
+    /// Commands a test script can send to a Debug build:
+    /// `com.rkrev.checkpoint.debug.<command>` as a distributed notification (see scripts/e2e.sh).
+    private static let debugCommands = [
+        "checkInNow", "acknowledge", "snooze", "pause",
+        "focusOn", "focusOff",
+        "screensaverStart", "screensaverStop", "lockStart", "lockStop",
+    ]
+
+    private func observeDebugCommands() {
+        for command in Self.debugCommands {
+            DistributedNotificationCenter.default().addObserver(
+                forName: NSNotification.Name("com.rkrev.checkpoint.debug.\(command)"),
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.runDebugCommand(command)
+                }
+            }
+        }
+    }
+
+    private func runDebugCommand(_ command: String) {
+        log.notice("DEBUG command: \(command, privacy: .public)")
+        switch command {
+        case "checkInNow": triggerNow()
+        case "acknowledge": windowController?.debugAcknowledge()
+        case "snooze": windowController?.debugSnooze()
+        case "pause": pauseCheckpoints()
+        case "focusOn": focusObserver.debugSetFocus(true)
+        case "focusOff": focusObserver.debugSetFocus(false)
+        case "screensaverStart": beginAway(.screensaver)
+        case "screensaverStop": endAway(.screensaver)
+        case "lockStart": beginAway(.screenLocked)
+        case "lockStop": endAway(.screenLocked)
+        default: log.error("Unknown debug command: \(command, privacy: .public)")
+        }
     }
 
     @objc func debugResetFirstLaunch() {
