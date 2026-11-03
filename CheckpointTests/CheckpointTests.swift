@@ -509,14 +509,14 @@ struct ObjectiveTrackerTests {
         func advance(minutes: Double) { time = time.addingTimeInterval(minutes * 60) }
     }
 
-    private func makeTracker(clock: Clock, defaults: UserDefaults? = nil, url: URL? = nil) -> (ObjectiveTracker, UserDefaults, URL) {
+    fileprivate func makeTracker(clock: Clock, defaults: UserDefaults? = nil, url: URL? = nil) -> (ObjectiveTracker, UserDefaults, URL) {
         let d = defaults ?? UserDefaults(suiteName: "test-\(UUID().uuidString)")!
         let u = url ?? FileManager.default.temporaryDirectory.appendingPathComponent("sessions-\(UUID().uuidString).jsonl")
         return (ObjectiveTracker(defaults: d, now: { clock.time }, sessionsURL: u), d, u)
     }
 
     /// 10:00 today (whole seconds, so durations compare exactly), so tests don't cross midnight
-    private func morning() -> Date {
+    fileprivate func morning() -> Date {
         let date = Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: Date())!
         return Date(timeIntervalSinceReferenceDate: date.timeIntervalSinceReferenceDate.rounded())
     }
@@ -769,5 +769,38 @@ struct GoalsTests {
         defaults.set("   ", forKey: "goal2")
         defaults.set("Run 3× a week", forKey: "goal3")
         #expect(Goals.current(defaults) == ["Ship 1.0", "Run 3× a week"])
+    }
+}
+
+// MARK: - Time per objective and pause
+
+struct ObjectiveTotalsTests {
+    @Test func stretchesOfTheSameObjectiveAddUp() {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        func s(_ name: String, _ minutes: Double) -> ObjectiveSession {
+            ObjectiveSession(id: UUID(), objective: name, ifThenPlan: nil, startedAt: start,
+                             endedAt: start.addingTimeInterval(minutes * 60), awaySeconds: 0, awaySince: nil)
+        }
+        let totals = ObjectiveTotals.byObjective([s("App", 60), s("Email", 25), s("App", 40)], at: Date())
+        let expected: [ObjectiveTotals.Total] = [
+            ObjectiveTotals.Total(objective: "App", seconds: 6000, stretches: 2),
+            ObjectiveTotals.Total(objective: "Email", seconds: 1500, stretches: 1),
+        ]
+        #expect(totals == expected)
+    }
+}
+
+extension ObjectiveTrackerTests {
+    @Test func pausedTimeIsNotCounted() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
+        clock.advance(minutes: 20)
+        tracker.beginAway()      // Pause
+        clock.advance(minutes: 45)
+        tracker.beginAway()      // e.g. screen locks while paused: no double count
+        tracker.endAway()        // Resume
+        clock.advance(minutes: 10)
+        #expect(tracker.activeSeconds() == 30 * 60.0)
     }
 }

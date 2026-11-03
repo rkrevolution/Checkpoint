@@ -26,6 +26,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var checkInHeldForCall = false
     /// True while no keyboard or mouse input for `idleThreshold` (counted as away for time on objective)
     private var isIdle = false
+    /// When the current away period began, for the welcome-back prompt
+    private var awayStartedAt: Date?
+    private static let welcomeBackAfter: TimeInterval = 60 * 60
     private static let idleThreshold: TimeInterval = 5 * 60
     var checkpointTimer: CheckpointTimer?
     private var snoozeTimer: DispatchSourceTimer?
@@ -201,18 +204,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if checkpointTimer == nil {
             startTimer()
         }
-        presentObjectivePrompt {
+        let hour = Calendar.current.component(.hour, from: Date())
+        presentObjectivePrompt(greeting: hour < 12 ? "Good morning" : "Welcome back") {
             log.notice("Objective prompt dismissed")
         }
     }
 
+    /// "You were on: Report · 1 h 20 min today", for the welcome-back prompt.
+    private func welcomeBackContext() -> String? {
+        let objective = objectiveTracker.current?.objective
+            ?? UserDefaults.standard.string(forKey: "currentObjective") ?? ""
+        guard !objective.isEmpty else { return nil }
+        let today = ObjectiveTotals.byObjective(objectiveTracker.todaySessions(), at: Date())
+            .first { $0.objective == objective }
+        if let today, today.seconds >= 60 {
+            return "You were on: \(objective) · \(DurationText.long(today.seconds)) today"
+        }
+        return "Last: \(objective)"
+    }
+
     /// Opens the "What are you working on?" prompt with recent objectives and the current
     /// estimate, records the estimate on Start, then runs `onDone`.
-    private func presentObjectivePrompt(onDone: @escaping () -> Void) {
+    private func presentObjectivePrompt(greeting: String? = nil, onDone: @escaping () -> Void) {
         let session = objectiveTracker.current
         let oc = ObjectivePromptController(
             recentObjectives: objectiveTracker.recentObjectives(limit: 10),
-            initialEstimate: session?.estimateMinutes
+            initialEstimate: session?.estimateMinutes,
+            greeting: greeting,
+            context: greeting == nil ? nil : welcomeBackContext()
         ) { [weak self] in
             self?.objectiveController = nil
             onDone()
@@ -275,6 +294,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func beginAway(_ reason: AwayReason) {
         let wasAway = !awayReasons.isEmpty
         awayReasons.insert(reason)
+        if !wasAway { awayStartedAt = Date() }
         log.notice("━━━ AWAY: \(reason.rawValue, privacy: .public) (reasons=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard !wasAway else { return }
 
@@ -303,7 +323,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("━━━ BACK: \(reason.rawValue, privacy: .public) (remaining=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
         guard awayReasons.isEmpty else { return }
 
-        objectiveTracker.endAway()
+        // While paused the clock stays stopped until Resume
+        if appState.state != .paused {
+            objectiveTracker.endAway()
+        }
+
+        // Back after a long break: a welcome-back prompt to pick up (or change) the objective
+        if appState.state != .paused, let since = awayStartedAt,
+           Date().timeIntervalSince(since) >= Self.welcomeBackAfter,
+           objectiveController == nil, welcomeController == nil {
+            log.notice("Back after \(Int(Date().timeIntervalSince(since) / 60)) min: welcome back")
+            presentObjectivePrompt(greeting: "Welcome back") {}
+        }
+        awayStartedAt = nil
 
         // If user had manually paused, respect that
         if appState.state == .paused {
@@ -653,7 +685,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Counts long stretches without keyboard or mouse input as away (backdated to the last input).
     /// Only affects time on objective, not check-in scheduling.
     private func checkIdle() {
-        guard awayReasons.isEmpty else { return }  // sleep/lock/screensaver already count as away
+        // Sleep/lock/screensaver and pause already stop the clock
+        guard awayReasons.isEmpty, appState.state != .paused else { return }
         // On a call you're working even without typing
         if callDetector.isInCall {
             if isIdle {
@@ -868,25 +901,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             resumeCheckpoints()
         } else {
             log.notice("Shortcut: pause")
-            windowController?.dismissImmediately()
-            windowController = nil
             pauseCheckpoints()
         }
     }
 
+    /// Pausing stops check-ins and the clock on the current objective; any open card closes (#49).
     @objc private func pauseCheckpoints() {
+        windowController?.dismissImmediately()
+        windowController = nil
         checkpointTimer?.stop()
         snoozeTimer?.cancel()
         snoozeTimer = nil
+        objectiveTracker.beginAway()
         appState.transition(to: .paused)
     }
 
     @objc private func resumeCheckpoints() {
         // Re-prompt for objective on resume, then restart timer
-        presentObjectivePrompt { [weak self] in
+        presentObjectivePrompt(greeting: "Welcome back") { [weak self] in
             let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
             self?.checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
             self?.elapsedSince = Date()
+            self?.objectiveTracker.endAway()  // the clock starts again
             self?.appState.transition(to: .idle)
         }
     }

@@ -11,7 +11,11 @@ final class ObjectivePromptController: NSWindowController {
 
     /// - Parameter recentObjectives: one-tap suggestions, so returning to an earlier task is quick
     ///   and its name stays consistent (time per objective only adds up when names match).
-    init(recentObjectives: [String] = [], initialEstimate: Int? = nil, onDone: @escaping () -> Void) {
+    /// - Parameters:
+    ///   - greeting: "Good morning" / "Welcome back" when re-entering the loop; nil for a plain change
+    ///   - context: e.g. "You were on: Report · 1 h 20 min today"
+    init(recentObjectives: [String] = [], initialEstimate: Int? = nil,
+         greeting: String? = nil, context: String? = nil, onDone: @escaping () -> Void) {
         self.onDone = onDone
 
         let window = NSWindow(
@@ -34,6 +38,8 @@ final class ObjectivePromptController: NSWindowController {
             initialPlan: existingPlan,
             recentObjectives: recentObjectives.filter { $0 != existing },
             initialEstimate: initialEstimate,
+            greeting: greeting,
+            context: context,
             onSave: { [weak self] text, plan, estimate in
                 if !text.isEmpty {
                     UserDefaults.standard.set(text, forKey: "currentObjective")
@@ -89,6 +95,8 @@ private struct ObjectivePromptView: View {
     let initialPlan: String
     let recentObjectives: [String]
     let initialEstimate: Int?
+    let greeting: String?
+    let context: String?
     var onSave: (String, String, Int?) -> Void
     var onSkip: () -> Void
 
@@ -111,8 +119,20 @@ private struct ObjectivePromptView: View {
                 .font(.system(size: 28))
                 .foregroundStyle(.orange)
 
-            Text("What are you working on?")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+            VStack(spacing: 4) {
+                if let greeting {
+                    Text(greeting)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                }
+                Text("What are you working on?")
+                    .font(.system(size: greeting == nil ? 16 : 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(greeting == nil ? .primary : .secondary)
+                if let context {
+                    Text(context)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.orange)
+                }
+            }
 
             // Combo box: type a new objective, or pick a recent one from the dropdown
             HStack(spacing: 4) {

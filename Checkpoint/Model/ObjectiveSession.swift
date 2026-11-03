@@ -41,6 +41,30 @@ extension ObjectiveSession {
     }
 }
 
+/// Time per objective across stretches (switching back to a task adds to the same total).
+enum ObjectiveTotals {
+    struct Total: Equatable {
+        let objective: String
+        let seconds: TimeInterval
+        let stretches: Int
+    }
+
+    /// Totals by objective name, longest first.
+    nonisolated static func byObjective(_ sessions: [ObjectiveSession], at now: Date) -> [Total] {
+        var order: [String] = []
+        var seconds: [String: TimeInterval] = [:]
+        var counts: [String: Int] = [:]
+        for session in sessions {
+            if seconds[session.objective] == nil { order.append(session.objective) }
+            seconds[session.objective, default: 0] += session.activeSeconds(at: now)
+            counts[session.objective, default: 0] += 1
+        }
+        return order
+            .map { Total(objective: $0, seconds: seconds[$0]!, stretches: counts[$0]!) }
+            .sorted { $0.seconds > $1.seconds }
+    }
+}
+
 /// Estimate vs actual (#11): how much longer (or shorter) tasks took than the user guessed.
 enum EstimateStats {
     /// Total actual time divided by total estimated time, over sessions that have an estimate
