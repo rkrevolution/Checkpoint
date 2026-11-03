@@ -12,10 +12,10 @@ It's a time perception prosthetic. Corrective lensing, not discipline.
 
 | | |
 |---|---|
-| **Works** | Unpredictable check-ins; time on your current objective (menu bar, card, Today); On track / Drifted / Switched answers; estimates vs actual; parked thoughts; Today window; goals; holds check-ins during calls; never shows over the screensaver or lock screen; warns if check-ins stop |
-| **Known issues** | [#49](../../issues/49) pausing from the menu leaves an open card · [#50](../../issues/50) menu bar shows "Focus" when Respect Focus is off · [#51](../../issues/51) / [#43](../../issues/43) a new day only starts at launch · [#52](../../issues/52) a held check-in can be followed by another soon after · [#2](../../issues/2) Focus detection probably doesn't work on current macOS |
+| **Works** | Unpredictable check-ins; time on your current objective (menu bar, card, Today), not counting pauses, time away or idle; On track / Drifted / Switched answers; estimates vs actual; parked thoughts; Today window with time per objective; goals; welcome-back prompts; holds check-ins during calls; never shows over the screensaver or lock screen; warns if check-ins stop |
+| **Known issues** | [#50](../../issues/50) menu bar shows "Focus" when Respect Focus is off · [#51](../../issues/51) a new day only starts at launch (not while running overnight) · [#52](../../issues/52) a held check-in can be followed by another soon after · [#2](../../issues/2) Focus detection probably doesn't work on current macOS · [#44](../../issues/44) Start at Login with `install.sh` not yet verified |
 | **Not proven** | Built on well-documented ideas (see [Research basis](#research-basis)), but the app itself hasn't been studied. Whether it helps *you* shows after a few weeks of use; the data (answers, time per task, estimate accuracy) is recorded locally. |
-| **Next** | A few weeks of real use. Then: [#40](../../issues/40) "is it working?" trends, [#13](../../issues/13) calendar warnings, [#16](../../issues/16)/[#17](../../issues/17) internal cleanup. Full plan: [roadmap #31](../../issues/31). |
+| **Next** | A week or two of real use, then the bugs above, [#62](../../issues/62) objective hint, [#40](../../issues/40) "is it working?" trends, [#13](../../issues/13) calendar warnings. Ideas parked under the [`later`](../../issues?q=is%3Aopen+label%3Alater) label. Full plan: [roadmap #31](../../issues/31). |
 
 ## How it works
 
@@ -28,7 +28,7 @@ Being interruptive is the point. It has to break through hyperfocus to work. It 
 
 ![A checkpoint prompt showing the time, elapsed duration, current objective, and a grounding question](screenshot-checkpoint.png)
 
-*Screenshots show an earlier version; the card now has On track / Drifted / Switched and time on your objective.*
+*Screenshots show an earlier version; the card now answers its question with On track / Drifted / Switched and shows time on your objective.*
 
 ## Features
 
@@ -77,9 +77,10 @@ Checkpoint started the day as a working Swift prototype. In one development sess
 - **Time visible:** time on the current objective, a stall warning, if-then plans. ([#37](../../pull/37))
 - **Feedback loop:** On track / Drifted / Switched, parked thoughts, estimates vs actual, the Today window, idle-aware time. ([#38](../../pull/38), [#39](../../pull/39))
 - **Everyday use:** weekday skipping setting, ⌃⌥⌘P shortcut, simple goals, holding check-ins during calls and hiding from screen shares. ([#45](../../pull/45), [#47](../../pull/47), [#48](../../pull/48))
-- **Engineering:** CI with unit and end-to-end tests, `run.sh`/`install.sh`, version display and DEV badge, `CLAUDE.md`, research and UX docs. Footprint about 46 MB and 0% CPU when idle.
-- **Decisions:** stay native Swift (not Electron or Tauri); free-text objectives with recent suggestions rather than a dropdown; goals kept to three simple lines rather than a full goal hierarchy; an independent review's proposal to slim the card, prompt and settings was **declined for now**, and its bug findings were filed as #49–#52.
-- **Tracking:** 20 issues closed; remaining work is on the [issues page](../../issues) and the [roadmap](../../issues/31).
+- **Clarity and re-entry:** How Checkpoint Works panel and tooltips; Dock opens Settings; pause stops the clock; "Good morning" / "Welcome back" prompts; time per objective in Today; one question and one duration on the card; the prompt's extras behind More…; objective names match regardless of capitalization; window titles and style per Apple's guidelines; no "next check-in" hints. ([#54](../../pull/54), [#55](../../pull/55), [#57](../../pull/57))
+- **Engineering:** CI with 63 unit tests and an 18-check end-to-end test, `run.sh`/`install.sh`, version display and DEV badge, `CLAUDE.md`, research, UX-flow and panel docs. Footprint about 46 MB and 0% CPU when idle.
+- **Decisions:** stay native Swift (not Electron or Tauri); free-text objectives with recent suggestions rather than a dropdown; goals kept to three simple lines rather than a full goal hierarchy; an independent review's broader proposal to cut features and settings was **declined**; its clarity points were applied without removing features (#57), and its bug findings were filed as #49–#52 (#49 fixed). Competitors reviewed (Be Focused, Vitamin-R and others); their best ideas are parked under `later`.
+- **Tracking:** 22 issues closed, both milestones complete; remaining work is on the [issues page](../../issues) and the [roadmap](../../issues/31).
 
 ## License
 
