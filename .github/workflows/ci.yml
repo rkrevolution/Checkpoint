@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build and test
+        run: |
+          xcodebuild -version
+          xcodebuild test \
+            -project Checkpoint.xcodeproj \
+            -scheme Checkpoint \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO
