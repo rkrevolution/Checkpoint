@@ -11,7 +11,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     let scheduleManager = ScheduleManager()
     let questionBank = QuestionBank()
-    let notificationMgr = NotificationManager()
     let focusObserver = FocusModeObserver()
     let responseLog = ResponseLog()
     let customStore = CustomQuestionStore()
@@ -73,9 +72,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 3. Set dock icon programmatically (sun)
         setDockIcon()
-
-        // 4. Request notification permission
-        notificationMgr.requestPermission { _ in }
 
         // 5. Setup menu bar status item (running indicator + countdown)
         let sic = StatusItemController(appDelegate: self)
