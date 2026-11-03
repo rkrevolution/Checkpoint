@@ -25,7 +25,10 @@ final class CheckpointTimer {
     private func scheduleNext(baseInterval: TimeInterval) {
         timer?.cancel()
 
-        let jitterRange = UserDefaults.standard.integer(forKey: "jitterRange")
+        let jitterRange = Self.effectiveJitterRange(
+            setting: UserDefaults.standard.integer(forKey: "jitterRange"),
+            baseInterval: baseInterval
+        )
         let jitter = jitterRange > 0 ? Int.random(in: -jitterRange...jitterRange) : 0
         let actual = max(60, Int(baseInterval) + jitter) // never less than 1 min
 
@@ -49,6 +52,11 @@ final class CheckpointTimer {
         _nextFireDate = fireDate
         source.resume()
         timer = source
+    }
+
+    /// Jitter is capped at a quarter of the interval so short intervals aren't dominated by randomness.
+    nonisolated static func effectiveJitterRange(setting: Int, baseInterval: TimeInterval) -> Int {
+        max(0, min(setting, Int(baseInterval) / 4))
     }
 
     func stop() {

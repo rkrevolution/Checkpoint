@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let log = Logger(subsystem: "com.rkrev.checkpoint", category: "ResponseLog")
 
 @MainActor
 final class ResponseLog {
@@ -21,14 +24,18 @@ final class ResponseLog {
         let url = fileURL
         let lineData = Data(line.utf8)
         queue.async {
-            if FileManager.default.fileExists(atPath: url.path) {
-                if let handle = try? FileHandle(forWritingTo: url) {
-                    handle.seekToEndOfFile()
-                    handle.write(lineData)
-                    handle.closeFile()
+            do {
+                if FileManager.default.fileExists(atPath: url.path) {
+                    // Throwing FileHandle APIs: the legacy write(_:) raises an ObjC exception on I/O failure
+                    let handle = try FileHandle(forWritingTo: url)
+                    defer { try? handle.close() }
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: lineData)
+                } else {
+                    try lineData.write(to: url, options: .atomic)
                 }
-            } else {
-                try? lineData.write(to: url, options: .atomic)
+            } catch {
+                log.error("Failed to append to response log: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

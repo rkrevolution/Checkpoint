@@ -127,12 +127,16 @@ final class StatusItemController {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Trigger now
-        let triggerNow = NSMenuItem(title: "Check In Now", action: #selector(AppDelegate.triggerNow), keyEquivalent: "")
-        triggerNow.target = appDelegate
-        menu.addItem(triggerNow)
-
-        menu.addItem(NSMenuItem.separator())
+        // Trigger now (not while paused or while a checkpoint is already up)
+        switch appDelegate.appState.state {
+        case .paused, .presenting, .triggered:
+            break
+        default:
+            let triggerNow = NSMenuItem(title: "Check In Now", action: #selector(AppDelegate.triggerNow), keyEquivalent: "")
+            triggerNow.target = appDelegate
+            menu.addItem(triggerNow)
+            menu.addItem(NSMenuItem.separator())
+        }
 
         let prefs = NSMenuItem(title: "Preferences…", action: #selector(AppDelegate.openPreferences), keyEquivalent: ",")
         prefs.target = appDelegate
