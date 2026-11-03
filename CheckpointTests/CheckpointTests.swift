@@ -368,11 +368,17 @@ struct CheckpointTimerTests {
             let timer = CheckpointTimer()
             timer.start(interval: 300)
             let remaining = timer.nextFireDate!.timeIntervalSinceNow
-            // 300 ± 120, so between 180 and 420
-            #expect(remaining >= 170 && remaining <= 430)
+            // 300 ± min(120, 300/4 = 75), so between 225 and 375
+            #expect(remaining >= 215 && remaining <= 385)
             timer.stop()
             UserDefaults.standard.set(600, forKey: "jitterRange")
         }
+    }
+
+    @Test func jitterIsCappedToQuarterOfInterval() {
+        #expect(CheckpointTimer.effectiveJitterRange(setting: 600, baseInterval: 60) == 15)
+        #expect(CheckpointTimer.effectiveJitterRange(setting: 600, baseInterval: 2700) == 600)
+        #expect(CheckpointTimer.effectiveJitterRange(setting: 0, baseInterval: 2700) == 0)
     }
 }
 

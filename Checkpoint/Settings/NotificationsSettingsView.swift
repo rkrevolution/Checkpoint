@@ -50,7 +50,7 @@ struct NotificationsSettingsView: View {
                     ), in: 0...15, step: 1) {
                         Text("Jitter")
                     }
-                    Text("Adds randomness to prevent habituation. Set to 0 for exact intervals.")
+                    Text("Adds randomness to prevent habituation, up to a quarter of the interval. Set to 0 for exact intervals.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
