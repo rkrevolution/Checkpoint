@@ -61,9 +61,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 2. Wire Focus observer → AppState (always observe; setting checked at fire time)
         focusObserver.onFocusChanged = { [weak self] isActive in
             guard let self else { return }
-            if isActive {
+            // Only move between idle and focusModeActive; never override a manual pause,
+            // a snooze, or an open checkpoint.
+            if isActive, self.appState.state == .idle {
                 self.appState.transition(to: .focusModeActive)
-            } else if self.appState.state == .focusModeActive {
+            } else if !isActive, self.appState.state == .focusModeActive {
                 self.appState.transition(to: .idle)
             }
         }
@@ -238,6 +240,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             hasShownDaySummary = false
         }
 
+        // Focus is re-checked below on every fire, so don't stay stuck in focusModeActive
+        // (e.g. after "Respect Focus" is turned off while Focus is on)
+        if appState.state == .focusModeActive {
+            appState.transition(to: .idle)
+        }
+
         // Only fire from idle state
         guard appState.state == .idle else {
             log.notice("Not idle, skipping. state=\(String(describing: self.appState.state))")
@@ -336,12 +344,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let estimate = "~\(mins) min"
 
         let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
+        let maxSnoozes = UserDefaults.standard.integer(forKey: "maxSnoozesPerCheckpoint")
 
         let wc = CheckpointWindowController(
             session: session,
             currentObjective: objective,
             nextCheckpointEstimate: estimate,
             checkpointNumber: todayCheckpointCount,
+            allowSnooze: maxSnoozes == 0 || snoozeCount < maxSnoozes,
             onDone: { [weak self] completed, updatedObjective in
                 let formatter = DateFormatter()
                 formatter.timeStyle = .medium
@@ -394,22 +404,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Log the snooze
         if UserDefaults.standard.bool(forKey: "logResponses") {
-            var snoozed = session
-            snoozed.outcome = .snoozed
+            // Log each snooze as its own entry so History never sees duplicate IDs
+            let snoozed = CheckpointSession(
+                id: UUID(),
+                timestamp: Date(),
+                intervalSeconds: session.intervalSeconds,
+                questionsShown: session.questionsShown,
+                responses: session.responses,
+                outcome: .snoozed
+            )
             try? responseLog.append(snoozed)
         }
 
-        // Check if max snoozes reached
-        if maxSnoozes > 0, newCount >= maxSnoozes {
-            let action = UserDefaults.standard.string(forKey: "afterMaxSnoozeAction") ?? "autoDismiss"
-            if action == "autoDismiss" {
-                appState.transition(to: .idle)
-                return
-            } else {
-                // Force open modal
-                presentCheckpoint(session: session, snoozeCount: newCount)
-                return
-            }
+        // Max snoozes reached: either drop this checkpoint, or ("forceModal") fall through
+        // and re-present after the snooze without a "Not now" option.
+        if maxSnoozes > 0, newCount >= maxSnoozes,
+           (UserDefaults.standard.string(forKey: "afterMaxSnoozeAction") ?? "autoDismiss") == "autoDismiss" {
+            appState.transition(to: .idle)
+            return
         }
 
         let snoozeMinutes = UserDefaults.standard.integer(forKey: "snoozeMinutes")
@@ -424,6 +436,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         source.setEventHandler { [weak self] in
             guard let self else { return }
             self.snoozeTimer = nil
+            guard case .snoozed = self.appState.state else { return }
+            let focusBlocks = UserDefaults.standard.bool(forKey: "respectFocusMode") && self.focusObserver.isFocusActive
+            guard self.scheduleManager.shouldFire(), !focusBlocks else {
+                log.notice("Snoozed checkpoint dropped: schedule or Focus no longer allows it")
+                self.appState.transition(to: .idle)
+                return
+            }
             self.presentCheckpoint(session: session, snoozeCount: newCount)
         }
         source.resume()
@@ -553,7 +572,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openPreferences() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        // macOS 14+ ignores the old `showSettingsWindow:` action, so trigger the app menu's
+        // own Settings… item (the one SwiftUI's Settings scene installs) instead.
+        NSApp.activate()
+        if let appMenu = NSApp.mainMenu?.items.first?.submenu,
+           let index = appMenu.items.firstIndex(where: { $0.keyEquivalent == "," && $0.keyEquivalentModifierMask == .command }) {
+            appMenu.performActionForItem(at: index)
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 
     // Called from StatusItemController menu

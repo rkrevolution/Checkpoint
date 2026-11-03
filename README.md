@@ -38,7 +38,7 @@ Intervals from 1 min to 2 hours with random jitter. Active hours with overnight 
 
 ## Build
 
-Requires macOS 13+ and Xcode 15+.
+Requires macOS 26.2+ and Xcode 26.2+.
 
 ```bash
 git clone https://github.com/rkrevolution/Checkpoint.git

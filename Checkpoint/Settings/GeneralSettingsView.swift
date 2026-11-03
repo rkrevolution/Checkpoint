@@ -3,6 +3,7 @@ import ServiceManagement
 import SwiftUI
 
 struct GeneralSettingsView: View {
+    @EnvironmentObject private var customStore: CustomQuestionStore
     @AppStorage("checkpointInterval") private var intervalSeconds = 2700
     @AppStorage("activeHoursStart") private var activeHoursStart = 8
     @AppStorage("activeHoursEnd") private var activeHoursEnd = 18
@@ -117,6 +118,7 @@ struct GeneralSettingsView: View {
 
     private func showPreview() {
         let bank = QuestionBank()
+        bank.customStore = customStore
         let questions = bank.selectQuestions(count: questionsPerCheckpoint)
         let session = CheckpointSession(
             id: UUID(),
@@ -163,5 +165,6 @@ struct GeneralSettingsView: View {
 
 #Preview {
     GeneralSettingsView()
+        .environmentObject(CustomQuestionStore())
         .frame(width: 520, height: 480)
 }

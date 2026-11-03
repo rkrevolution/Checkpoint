@@ -14,6 +14,7 @@ final class CheckpointWindowController: NSWindowController {
         currentObjective: String = "",
         nextCheckpointEstimate: String = "",
         checkpointNumber: Int = 1,
+        allowSnooze: Bool = true,
         onDone: @escaping (CheckpointSession, String?) -> Void,
         onSnooze: @escaping () -> Void
     ) {
@@ -50,6 +51,7 @@ final class CheckpointWindowController: NSWindowController {
             currentObjective: currentObjective,
             nextCheckpointEstimate: nextCheckpointEstimate,
             checkpointNumber: checkpointNumber,
+            allowSnooze: allowSnooze,
             onDone: { [weak self] completed, updatedObjective in
                 self?.dismissModal(with: completed, updatedObjective: updatedObjective)
             },
