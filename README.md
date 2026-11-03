@@ -47,7 +47,7 @@ Being interruptive is the point. It has to break through hyperfocus to work. It 
 
 ## Research basis
 
-Checkpoint is informed by research rather than proven by it. Time perception problems in ADHD are well documented, and its core mechanism (an unpredictable cue to check whether you're on task, with the time made visible) mirrors cued self-monitoring, which works well for children with ADHD. Most direct evidence comes from children, and the app itself hasn't been studied. See [docs/research-basis.md](docs/research-basis.md) for each design choice, the evidence behind it, and how strong it is, including the CBT program for adult ADHD that several features draw on. The user flow, app states and UX review are in [docs/ux-flow.md](docs/ux-flow.md).
+Checkpoint is informed by research rather than proven by it. Time perception problems in ADHD are well documented, and its core mechanism (an unpredictable cue to check whether you're on task, with the time made visible) mirrors cued self-monitoring, which works well for children with ADHD. Most direct evidence comes from children, and the app itself hasn't been studied. See [docs/research-basis.md](docs/research-basis.md) for each design choice, the evidence behind it, and how strong it is, including the CBT program for adult ADHD that several features draw on. What each panel is for and how it fits the loop is in [docs/panels.md](docs/panels.md); the user flow, app states and UX review are in [docs/ux-flow.md](docs/ux-flow.md).
 
 ## Install and run
 
