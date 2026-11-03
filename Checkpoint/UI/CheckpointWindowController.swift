@@ -18,6 +18,7 @@ final class CheckpointWindowController: NSWindowController {
         nextCheckpointEstimate: String = "",
         checkpointNumber: Int = 1,
         objectiveSession: ObjectiveSession? = nil,
+        recentObjectives: [String] = [],
         allowSnooze: Bool = true,
         onDone: @escaping (CheckpointSession, String?) -> Void,
         onSnooze: @escaping () -> Void
@@ -27,7 +28,7 @@ final class CheckpointWindowController: NSWindowController {
         self.onSnooze = onSnooze
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 380),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 440),
             styleMask: [.titled],  // no close button — you must engage
             backing: .buffered,
             defer: false
@@ -56,6 +57,7 @@ final class CheckpointWindowController: NSWindowController {
             nextCheckpointEstimate: nextCheckpointEstimate,
             checkpointNumber: checkpointNumber,
             objectiveSession: objectiveSession,
+            recentObjectives: recentObjectives,
             allowSnooze: allowSnooze,
             onDone: { [weak self] completed, updatedObjective in
                 self?.dismissModal(with: completed, updatedObjective: updatedObjective)

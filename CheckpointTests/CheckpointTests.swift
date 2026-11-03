@@ -630,3 +630,47 @@ struct DurationTextTests {
         #expect(DurationText.short(160 * 60) == "2h40m")
     }
 }
+
+// MARK: - Check-in response and parked thoughts
+
+struct CheckInResponseTests {
+
+    @Test func olderHistoryEntriesStillDecode() throws {
+        let json = """
+        {"id":"7E57D00D-0000-4000-8000-000000000001","timestamp":"2026-11-02T10:00:00Z","intervalSeconds":2700,
+         "questions":[],"responses":[],"outcome":"completed"}
+        """
+        let session = try JSONDecoder.iso8601.decode(CheckpointSession.self, from: Data(json.utf8))
+        #expect(session.checkInResponse == nil)
+        #expect(session.parkedThought == nil)
+    }
+
+    @Test func responseAndParkedThoughtRoundTrip() throws {
+        var session = CheckpointSession(
+            id: UUID(), timestamp: Date(timeIntervalSinceReferenceDate: 0), intervalSeconds: 60,
+            questionsShown: [], responses: [], outcome: .completed)
+        session.checkInResponse = .drifted
+        session.parkedThought = "reply to Sam"
+        let decoded = try JSONDecoder.iso8601.decode(
+            CheckpointSession.self, from: JSONEncoder.iso8601.encode(session))
+        #expect(decoded == session)
+    }
+}
+
+@MainActor
+struct ParkedThoughtsTests {
+
+    @Test func parkAndMarkDonePersist() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("parked-\(UUID().uuidString).jsonl")
+        let store = ParkedThoughts(defaults: defaults, url: url)
+        store.park("  reply to Sam  ", objective: "Report")
+        store.park("   ", objective: nil)  // ignored
+        store.park("book dentist", objective: nil)
+        #expect(store.open.map(\.text) == ["reply to Sam", "book dentist"])
+
+        store.markDone(store.open[0].id)
+        let reloaded = ParkedThoughts(defaults: defaults, url: url)
+        #expect(reloaded.open.map(\.text) == ["book dentist"])
+    }
+}

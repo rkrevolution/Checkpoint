@@ -80,6 +80,7 @@ expect_absent() {  # expect_absent <description> <pattern> <seconds>
 }
 
 launch() {  # launch <interval seconds>
+    mkdir -p "$WORK/data"
     : >"$LOG"
     MARK=0
     log stream --style compact --level debug \
@@ -89,7 +90,7 @@ launch() {  # launch <interval seconds>
     "$BIN" -checkpointInterval "$1" -jitterRange 0 -hasLaunchedBefore YES \
         -playSoundOnCheckpoint NO -logResponses NO -fullScreenCheckpoint YES \
         -snoozeMinutes 1 -maxSnoozesPerCheckpoint 3 -respectFocusMode YES \
-        -useActiveHours NO -checkpointsEnabled YES >/dev/null 2>&1 &
+        -useActiveHours NO -checkpointsEnabled YES -e2eDataDir "$WORK/data" >/dev/null 2>&1 &
     APP_PID=$!
     expect "app launches and starts its timer" "TIMER STARTING" 15
 }

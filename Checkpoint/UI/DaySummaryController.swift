@@ -5,7 +5,7 @@ import SwiftUI
 /// "Today: N checkpoints, worked on: X, Y, Z"
 final class DaySummaryController: NSWindowController {
 
-    init(checkpointCount: Int, objectiveTimes: [(objective: String, seconds: TimeInterval)]) {
+    init(checkpointCount: Int, objectiveTimes: [(objective: String, seconds: TimeInterval)], parkedThoughts: [String] = []) {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 340, height: 200),
             styleMask: [.titled, .closable],
@@ -22,6 +22,7 @@ final class DaySummaryController: NSWindowController {
         let view = DaySummaryView(
             checkpointCount: checkpointCount,
             objectiveTimes: objectiveTimes,
+            parkedThoughts: parkedThoughts,
             onDismiss: { [weak self] in
                 self?.window?.close()
             }
@@ -45,6 +46,7 @@ final class DaySummaryController: NSWindowController {
 private struct DaySummaryView: View {
     let checkpointCount: Int
     let objectiveTimes: [(objective: String, seconds: TimeInterval)]
+    let parkedThoughts: [String]
     var onDismiss: () -> Void
 
     var body: some View {
@@ -70,6 +72,14 @@ private struct DaySummaryView: View {
                         .multilineTextAlignment(.center)
                         .lineLimit(3)
                 }
+
+                if !parkedThoughts.isEmpty {
+                    Text("Parked for later: " + parkedThoughts.joined(separator: " · "))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                }
             }
 
             Button("Done") {
@@ -79,6 +89,7 @@ private struct DaySummaryView: View {
             .controlSize(.large)
         }
         .padding(24)
-        .frame(width: 340, height: 200)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

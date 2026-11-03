@@ -9,17 +9,19 @@ flowchart TD
     Launch([Launch or login]) --> First{First launch?}
     First -- yes --> Welcome["Welcome window<br/>pick an interval"]
     Welcome --> Objective
-    First -- no --> Objective["'What are you working on?'<br/>recent objectives · optional if-then plan<br/>(U1)"]
+    First -- no --> Today{"Objective set today?"}
+    Today -- yes --> Work
+    Today -- no --> Objective["'What are you working on?'<br/>recent objectives · optional if-then plan"]
     Objective -- "Start / Skip / close" --> Work
 
     Work["Working<br/>menu bar: time on objective, or ⚠ if check-ins stopped"] -->|"interval ± jitter"| Gates{"Away, paused, Focus,<br/>outside active hours?"}
     Gates -- yes --> Work
     Gates -- no --> Card
 
-    Card["Checkpoint card<br/>time · time since last check-in<br/>objective · for 2 h 40 min · if-then plan<br/>one question · buttons enabled after 1.5 s"]
-    Card -- "Got it (U3)" --> Changed{Objective edited?}
-    Changed -- yes --> Toast["Toast: old → new objective"] --> Work
-    Changed -- no --> Work
+    Card["Checkpoint card<br/>time · on X for 2 h 40 min<br/>one question · 'Right now I'm…'<br/>buttons enabled after 1.5 s"]
+    Card -- "On track" --> Work
+    Card -- "Drifted" --> Drift["Your if-then plan<br/>park the distraction"] --> Work
+    Card -- "Switched" --> Switch["Pick a recent objective<br/>or type a new one"] --> Toast["Toast: old → new objective"] --> Work
     Card -- "Not now" --> Snoozed["Snoozed<br/>menu bar shows snooze countdown"]
     Snoozed -->|"snooze ends"| Card
     Snoozed -->|"snooze limit, auto-dismiss"| Work
@@ -28,6 +30,7 @@ flowchart TD
     Work -->|"active hours end<br/>(only if enabled, U5)"| Summary["Day summary<br/>count + objectives"]
 
     Work -.->|"menu: Update Objective…"| Objective
+    Work -.->|"menu: Park a Thought…"| Parked[("Parked list<br/>menu + day summary")]
     Work -.->|"menu: Pause"| Paused["Paused"]
     Paused -.->|"menu: Resume → objective prompt"| Objective
 ```
@@ -70,11 +73,11 @@ stateDiagram-v2
 
 | # | Finding | Why it matters | Fix |
 |---|---|---|---|
-| U1 | The objective prompt opens on **every** launch, including login, and pulls focus. | At login it competes with everything else starting; often dismissed unread. | Keep, but only re-ask if the objective is from a previous day; otherwise just confirm in the menu. |
+| U1 | The objective prompt opens on **every** launch, including login, and pulls focus. | At login it competes with everything else starting; often dismissed unread. | ✅ Fixed: the prompt only appears when there's no objective for today. |
 | U2 | The menu bar counts down to the **next check-in**. | It's about the app, not your time, and it **defeats the jitter**: research favours unpredictable cues, but a visible countdown lets you anticipate and brace. | ✅ Fixed: menu bar shows time on current objective (#10); countdown is an opt-in setting. |
-| U3 | "Got it" is the only response; the question has no answer. | Becomes a reflex; History learns nothing. | One-tap On track / Drifted / Switched (#12). |
+| U3 | "Got it" is the only response; the question has no answer. | Becomes a reflex; History learns nothing. | ✅ Fixed: one-tap On track / Drifted / Switched; Drifted shows the plan and a park field, Switched picks a recent objective (#12, #34). Answers are saved to History. |
 | U4 | At the snooze limit with "force open", the Not now button silently disappears. | Feels broken if you don't know why. | ✅ Fixed: the card says "Snooze limit reached". |
-| U5 | The day summary only appears if active hours are on (off by default). | Most users never see the end-of-day review. | Offer it at a chosen time or from the menu ("Today so far…"); expand with time per objective (#24, #21). |
+| U5 | The day summary only appears if active hours are on (off by default). | Most users never see the end-of-day review. | Partly: the summary now lists time per objective and parked thoughts. Still only shown when active hours end; a "Today" window is next. |
 | U6 | The card says "N minutes have passed", which mostly restates the interval. | Weak time cue. | ✅ Fixed: card shows "for 2 h 40 min · since 9:10" under the objective, and time since last check-in. |
 | U7 | First launch shows two windows back to back (Welcome, then objective). | Feels like setup friction. | Ask for the objective on the Welcome screen. |
 | U8 | The Preferences tab "Notifications" holds sound, timing, snooze, overlay and Focus settings, but the app sends no notifications. | Users look in the wrong place. | ✅ Fixed: tab renamed "Check-ins". |
