@@ -114,9 +114,29 @@ struct CheckpointView: View {
     @ViewBuilder
     private var objectiveSection: some View {
         if currentObjective.isEmpty {
-            Text("No objective set")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+            // Nothing tracked (prompt skipped): start the day's tracking right here
+            VStack(spacing: 8) {
+                Text("What are you working on?")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                HStack(spacing: 6) {
+                    ForEach(recentObjectives.prefix(3), id: \.self) { recent in
+                        Button(recent) {
+                            newObjective = recent
+                            finish(.switched)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .lineLimit(1)
+                    }
+                    Button(recentObjectives.isEmpty ? "Set objective…" : "Something else…") {
+                        mode = .switched
+                        fieldFocused = true
+                    }
+                    .controlSize(.small)
+                }
+                .disabled(!buttonsEnabled)
+            }
+            .padding(.horizontal, 24)
         } else {
             VStack(spacing: 4) {
                 HStack(spacing: 6) {

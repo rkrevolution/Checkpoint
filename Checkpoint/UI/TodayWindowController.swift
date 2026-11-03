@@ -157,6 +157,21 @@ struct TodayView: View {
                         }
                     }
                 }
+                // Per objective, so switching back to a task adds up
+                let totals = ObjectiveTotals.byObjective(sessions, at: now)
+                if totals.count < sessions.count {
+                    Divider().padding(.vertical, 2)
+                    ForEach(totals, id: \.objective) { total in
+                        HStack {
+                            Text(total.objective)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
+                            Spacer()
+                            Text(DurationText.long(total.seconds) + (total.stretches > 1 ? " (\(total.stretches)×)" : ""))
+                                .font(.system(size: 12).monospacedDigit())
+                        }
+                    }
+                }
                 let total = sessions.reduce(0) { $0 + $1.activeSeconds(at: now) }
                 Text("Total: \(DurationText.long(total))")
                     .font(.caption)
