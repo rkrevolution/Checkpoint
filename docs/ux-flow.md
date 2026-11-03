@@ -1,6 +1,6 @@
 # User experience flow
 
-How a user moves through Checkpoint today, the states the app can be in, what's unclear or illogical in that loop, and the loop we're building toward. Numbers like **(U3)** refer to the review findings below.
+What each panel is for is in [panels.md](panels.md). How a user moves through Checkpoint today, the states the app can be in, what's unclear or illogical in that loop, and the loop we're building toward. Numbers like **(U3)** refer to the review findings below.
 
 ## 1. The user loop today
 
