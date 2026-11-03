@@ -137,6 +137,20 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(disabled("No objective set"))
         }
         menu.addItem(action("Update Objective\u{2026}", #selector(AppDelegate.updateObjectiveFromMenu), app))
+        menu.addItem(action("Park a Thought\u{2026}", #selector(AppDelegate.parkThoughtFromMenu), app))
+        let open = app.parkedThoughts.open
+        if !open.isEmpty {
+            let submenu = NSMenu()
+            submenu.addItem(disabled("Click to mark done"))
+            for thought in open.suffix(15) {
+                let item = action(thought.text, #selector(AppDelegate.markParkedThoughtDone(_:)), app)
+                item.representedObject = thought.id
+                submenu.addItem(item)
+            }
+            let parked = NSMenuItem(title: "Parked (\(open.count))", action: nil, keyEquivalent: "")
+            parked.submenu = submenu
+            menu.addItem(parked)
+        }
         menu.addItem(.separator())
 
         // Check-in status

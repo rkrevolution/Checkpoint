@@ -66,12 +66,18 @@ struct HistorySettingsView: View {
                             Text(dateFormatter.string(from: session.timestamp))
                                 .font(.subheadline.weight(.medium))
                             Spacer()
-                            Text(outcomeLabel(session.outcome))
+                            Text(session.checkInResponse?.label ?? outcomeLabel(session.outcome))
                                 .font(.caption)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 2)
                                 .background(outcomeColor(session.outcome).opacity(0.15), in: Capsule())
                                 .foregroundStyle(outcomeColor(session.outcome))
+                        }
+
+                        if let thought = session.parkedThought {
+                            Label("Parked: \(thought)", systemImage: "tray.and.arrow.down")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
 
                         ForEach(Array(zip(session.questionsShown, session.responses)), id: \.0.id) { question, response in
@@ -194,11 +200,13 @@ struct HistorySettingsView: View {
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
             let formatter = ISO8601DateFormatter()
-            var csv = "timestamp,outcome,questions,responses\n"
+            var csv = "timestamp,outcome,check_in,parked,questions,responses\n"
             for session in sessions {
                 let fields = [
                     formatter.string(from: session.timestamp),
                     session.outcome.rawValue,
+                    session.checkInResponse?.rawValue ?? "",
+                    session.parkedThought ?? "",
                     session.questionsShown.map(\.text).joined(separator: "; "),
                     session.responses.map(\.text).joined(separator: "; "),
                 ]

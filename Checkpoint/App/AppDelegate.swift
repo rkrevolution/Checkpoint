@@ -14,7 +14,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let focusObserver = FocusModeObserver()
     let responseLog = ResponseLog()
     let customStore = CustomQuestionStore()
-    let objectiveTracker = ObjectiveTracker()
+    let objectiveTracker = ObjectiveTracker(
+        defaults: AppDelegate.dataDefaults, sessionsURL: AppDelegate.dataURL("sessions.jsonl"))
+    let parkedThoughts = ParkedThoughts(
+        defaults: AppDelegate.dataDefaults, url: AppDelegate.dataURL("parked.jsonl"))
     private var heartbeatTimer: Timer?
     var checkpointTimer: CheckpointTimer?
     private var snoozeTimer: DispatchSourceTimer?
@@ -33,7 +36,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var todayObjectives: [String] = []
     private var hasShownDaySummary = false
 
+    // MARK: - Data location
+
+    /// Debug builds launched with `-e2eDataDir <path>` (scripts/e2e.sh) keep tracker and parked
+    /// data in a throwaway place, so tests never touch the user's real sessions.
+    private static let testDataDir: URL? = {
+        #if DEBUG
+        if let path = UserDefaults.standard.string(forKey: "e2eDataDir") {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        #endif
+        return nil
+    }()
+
+    private static let dataDefaults: UserDefaults = {
+        guard testDataDir != nil else { return .standard }
+        let suite = "RkRev.Checkpoint.e2e"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }()
+
+    private static func dataURL(_ name: String) -> URL {
+        testDataDir?.appendingPathComponent(name) ?? JSONLinesFile<ParkedThought>.appSupportURL(name)
+    }
+
+    private static var isUnitTestHost: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // When hosting unit tests, don't start the app (it would touch real user data)
+        guard !Self.isUnitTestHost else { return }
+
         let loginStatus = SMAppService.mainApp.status
         log.notice("applicationDidFinishLaunching — loginItem=\(loginStatus.rawValue == 1 ? "enabled" : "not enabled") (status=\(loginStatus.rawValue))")
 
@@ -115,7 +150,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
         log.notice("hasLaunchedBefore=\(hasLaunchedBefore)")
         if hasLaunchedBefore {
-            showObjectivePrompt()
+            // Only ask when there's no objective for today; otherwise just keep going (U1)
+            if objectiveTracker.current == nil {
+                showObjectivePrompt()
+            } else {
+                startTimer()
+            }
         } else {
             showWelcome()
         }
@@ -390,12 +430,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             nextCheckpointEstimate: estimate,
             checkpointNumber: todayCheckpointCount,
             objectiveSession: objectiveTracker.current,
+            recentObjectives: objectiveTracker.recentObjectives(limit: 10),
             allowSnooze: maxSnoozes == 0 || snoozeCount < maxSnoozes,
             onDone: { [weak self] completed, updatedObjective in
                 let formatter = DateFormatter()
                 formatter.timeStyle = .medium
                 log.notice("━━━ CHECKPOINT COMPLETED ━━━")
-                log.notice("  User tapped 'Got it' at \(formatter.string(from: Date()))")
+                log.notice("  Response: \(completed.checkInResponse?.rawValue ?? "none", privacy: .public) at \(formatter.string(from: Date()))")
                 log.notice("  Objective updated: \(updatedObjective != nil ? "yes" : "no")")
                 self?.windowController = nil
                 self?.elapsedSince = Date()
@@ -406,6 +447,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     if old != updated {
                         self?.transitionToast.show(from: old, to: updated)
                     }
+                }
+                if let thought = completed.parkedThought {
+                    self?.parkedThoughts.park(thought, objective: self?.objectiveTracker.current?.objective)
                 }
                 if UserDefaults.standard.bool(forKey: "logResponses") {
                     try? self?.responseLog.append(completed)
@@ -497,7 +541,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let controller = DaySummaryController(
             checkpointCount: todayCheckpointCount,
-            objectiveTimes: todayObjectiveTimes()
+            objectiveTimes: todayObjectiveTimes(),
+            parkedThoughts: parkedThoughts.open.map(\.text)
         )
         daySummaryController = controller
         controller.show()
@@ -543,6 +588,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         objectiveTracker.heartbeat()
+    }
+
+    // MARK: - Parked thoughts (#34)
+
+    @objc func parkThoughtFromMenu() {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = "Park a thought"
+        alert.informativeText = "Write it down to deal with later, then get back to what you were doing."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.placeholderString = "e.g. reply to Sam about Friday"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Park It")
+        alert.addButton(withTitle: "Cancel")
+        alert.window.initialFirstResponder = field
+        if alert.runModal() == .alertFirstButtonReturn {
+            parkedThoughts.park(field.stringValue, objective: objectiveTracker.current?.objective)
+        }
+    }
+
+    @objc func markParkedThoughtDone(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        parkedThoughts.markDone(id)
     }
 
     // MARK: - Stall detection (#25)
