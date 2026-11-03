@@ -27,10 +27,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
   e2e:
-    # Drives the real app on screen and reads its log. Non-blocking until it has
-    # proven reliable on GitHub's macOS runners (#30).
+    # Drives the real app on screen and reads its log (scripts/e2e.sh)
     runs-on: macos-26
-    continue-on-error: true
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
