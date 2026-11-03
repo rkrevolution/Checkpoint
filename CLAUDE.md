@@ -20,13 +20,22 @@ xcodebuild test -project Checkpoint.xcodeproj -scheme Checkpoint -destination 'p
 
 ## Layout
 
-- `Checkpoint/App` — `AppDelegate` owns the services, the scheduling gates, snooze and away handling.
+- `Checkpoint/App` — `AppDelegate` owns the services, the scheduling gates, snooze and away handling (for now; see "Planned restructure" below).
 - `Checkpoint/Services` — timer, schedule rules, question bank, history log, Focus observer.
 - `Checkpoint/UI` — checkpoint card and window controllers, menu bar item, prompts.
 - `Checkpoint/Settings` — the Preferences tabs.
 - `Checkpoint/Resources/questions.json` — built-in questions; the source of truth for categories.
 - `docs/panels.md` — why each panel exists, what it shows, when it appears; `docs/ux-flow.md` — user flow and state diagrams (Mermaid) plus the UX review. Update both when a panel or the user loop changes. `docs/research-basis.md` — evidence behind design choices.
 - The Xcode project uses folder-synced groups: adding or deleting a file needs no `project.pbxproj` edit.
+
+## Planned restructure
+
+`AppDelegate.swift` (~1,160 lines) and the raw `UserDefaults` keys are due to be restructured, behaviour-neutral, in the **Code cleanup** milestone: plan [#68](https://github.com/rkrevolution/Checkpoint/issues/68), in order **#16** typed `Settings` → **#17** one `CheckInGate` for "can a check-in show now?" → **#18** split into `CheckInScheduler`, `PresenceMonitor`, `WindowRouter` and `Diagnostics`. Each issue has a detailed plan and acceptance criteria.
+
+Until then:
+- **Don't grow `AppDelegate`.** Put new logic in its own type (with tests) and only wire it up in `AppDelegate`.
+- **Don't add new "not now" checks** in individual paths; note them on #17 so the gate covers them.
+- New settings: add the key and default in one place and note it on #16.
 
 ## Rules
 
