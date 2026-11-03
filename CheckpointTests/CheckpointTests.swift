@@ -740,3 +740,21 @@ struct EstimateStatsTests {
         #expect(!session(estimate: nil, activeMinutes: 80).isOverEstimate(at: end))
     }
 }
+
+// MARK: - Weekdays (#29)
+
+struct WeekdaysTests {
+    @Test func orderFollowsFirstWeekday() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.firstWeekday = 2  // Monday
+        #expect(Weekdays.ordered(calendar: calendar) == [2, 3, 4, 5, 6, 7, 1])
+        calendar.firstWeekday = 1  // Sunday
+        #expect(Weekdays.ordered(calendar: calendar) == [1, 2, 3, 4, 5, 6, 7])
+    }
+
+    @Test func setSkippedAddsAndRemoves() {
+        #expect(Weekdays.setSkipped(7, skipped: true, in: [1]) == [1, 7])
+        #expect(Weekdays.setSkipped(1, skipped: false, in: [1, 7]) == [7])
+        #expect(Weekdays.setSkipped(7, skipped: true, in: [7]) == [7])
+    }
+}

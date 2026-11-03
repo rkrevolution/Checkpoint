@@ -16,6 +16,7 @@ struct GeneralSettingsView: View {
     @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
 
     @State private var launchAtLogin = false
+    @State private var skipWeekdays: [Int] = UserDefaults.standard.array(forKey: "skipWeekdays") as? [Int] ?? []
     @State private var previewController: CheckpointWindowController?
 
     private let intervalOptions = [1, 2, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120]
@@ -38,7 +39,7 @@ struct GeneralSettingsView: View {
                             launchAtLogin = !newValue
                         }
                     }
-                Text("Automatically start Checkpoint when you log in to your Mac.")
+                Text("Automatically start Checkpoint when you log in to your Mac. Press ⌃⌥⌘P in any app to pause or resume check-ins.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -84,6 +85,23 @@ struct GeneralSettingsView: View {
                     Text("Checkpoints only fire during these hours.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                // Weekday skipping (#29): days shown in the user's calendar order
+                HStack(spacing: 4) {
+                    Text("Check in on")
+                    Spacer()
+                    ForEach(Weekdays.ordered(), id: \.self) { weekday in
+                        Toggle(Weekdays.shortName(weekday), isOn: Binding(
+                            get: { !skipWeekdays.contains(weekday) },
+                            set: { on in
+                                skipWeekdays = Weekdays.setSkipped(weekday, skipped: !on, in: skipWeekdays)
+                                UserDefaults.standard.set(skipWeekdays, forKey: "skipWeekdays")
+                            }
+                        ))
+                        .toggleStyle(.button)
+                        .controlSize(.small)
+                    }
                 }
             }
 
