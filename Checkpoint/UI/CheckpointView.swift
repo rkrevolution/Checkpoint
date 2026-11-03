@@ -27,6 +27,7 @@ struct CheckpointView: View {
     @FocusState private var fieldFocused: Bool
 
     @AppStorage("showBreathingCue") private var showBreathingCue = false
+    private let goals = Goals.current()
 
     init(session: CheckpointSession,
          currentObjective: String = "",
@@ -54,7 +55,17 @@ struct CheckpointView: View {
                 .padding(.bottom, 14)
 
             objectiveSection
-                .padding(.bottom, 14)
+                .padding(.bottom, goals.isEmpty ? 14 : 6)
+
+            if !goals.isEmpty {
+                Text("Goals: " + goals.joined(separator: " · "))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+            }
 
             Rectangle()
                 .fill(.separator)

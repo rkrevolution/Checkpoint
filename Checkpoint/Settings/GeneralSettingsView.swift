@@ -14,6 +14,9 @@ struct GeneralSettingsView: View {
     @AppStorage("useActiveHours") private var useActiveHours = false
     @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
     @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
+    @AppStorage("goal1") private var goal1 = ""
+    @AppStorage("goal2") private var goal2 = ""
+    @AppStorage("goal3") private var goal3 = ""
 
     @State private var launchAtLogin = false
     @State private var skipWeekdays: [Int] = UserDefaults.standard.array(forKey: "skipWeekdays") as? [Int] ?? []
@@ -24,6 +27,15 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             nowSection
+
+            Section("Goals") {
+                TextField("Goal 1", text: $goal1, prompt: Text("e.g. Ship Checkpoint 1.0"))
+                TextField("Goal 2", text: $goal2, prompt: Text("e.g. Run 3× a week"))
+                TextField("Goal 3", text: $goal3, prompt: Text("Optional"))
+                Text("Up to three, kept in view in the menu, on check-ins and in Today.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             Section {
                 Toggle("Start at Login", isOn: $launchAtLogin)

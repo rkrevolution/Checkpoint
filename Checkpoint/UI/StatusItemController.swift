@@ -129,6 +129,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
+        let goals = Goals.current()
+        if !goals.isEmpty {
+            menu.addItem(disabled("Goals"))
+            for goal in goals {
+                menu.addItem(disabled("  ◎ \(goal)"))
+            }
+            menu.addItem(.separator())
+        }
+
         let today = action("Today\u{2026}", #selector(AppDelegate.showTodayFromMenu), app)
         today.keyEquivalent = "t"
         menu.addItem(today)
