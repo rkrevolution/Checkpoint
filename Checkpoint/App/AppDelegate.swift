@@ -626,6 +626,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Clicking the Dock icon (or opening the app again from Finder or Spotlight) opens
+    /// Settings when nothing else is showing: it's the app's main window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag else { return true }
+        log.notice("Reopen: opening Settings")
+        openPreferences()
+        return false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         objectiveTracker.heartbeat()
     }
