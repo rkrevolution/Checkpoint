@@ -155,10 +155,10 @@ struct AppStateTests {
             let state = AppState()
             state.recordShownCategories(["a", "b", "c", "d"])
             state.recordShownCategories(["e", "f", "g", "h"])
-            // New ids prepended, max 6 total
-            #expect(state.recentCategoryIds.count == 6)
-            #expect(state.recentCategoryIds.contains("a") == false)
-            #expect(state.recentCategoryIds.contains("b") == false)
+            // New ids prepended, max 6 total: the tail of the older batch is dropped
+            #expect(state.recentCategoryIds == ["e", "f", "g", "h", "a", "b"])
+            #expect(state.recentCategoryIds.contains("c") == false)
+            #expect(state.recentCategoryIds.contains("d") == false)
         }
     }
 
