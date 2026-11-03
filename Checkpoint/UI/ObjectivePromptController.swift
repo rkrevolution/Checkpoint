@@ -6,14 +6,16 @@ import SwiftUI
 final class ObjectivePromptController: NSWindowController {
 
     private var onDone: (() -> Void)?
+    /// Called with the estimate in minutes (nil = none) just before `onDone`, when the user presses Start.
+    var onEstimate: ((Int?) -> Void)?
 
     /// - Parameter recentObjectives: one-tap suggestions, so returning to an earlier task is quick
     ///   and its name stays consistent (time per objective only adds up when names match).
-    init(recentObjectives: [String] = [], onDone: @escaping () -> Void) {
+    init(recentObjectives: [String] = [], initialEstimate: Int? = nil, onDone: @escaping () -> Void) {
         self.onDone = onDone
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 340),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -31,7 +33,8 @@ final class ObjectivePromptController: NSWindowController {
             initialText: existing,
             initialPlan: existingPlan,
             recentObjectives: recentObjectives.filter { $0 != existing },
-            onSave: { [weak self] text, plan in
+            initialEstimate: initialEstimate,
+            onSave: { [weak self] text, plan, estimate in
                 if !text.isEmpty {
                     UserDefaults.standard.set(text, forKey: "currentObjective")
                 }
@@ -40,6 +43,7 @@ final class ObjectivePromptController: NSWindowController {
                 } else {
                     UserDefaults.standard.set(plan, forKey: "currentIfThenPlan")
                 }
+                self?.onEstimate?(estimate)
                 self?.window?.close()
                 self?.onDone?()
                 self?.onDone = nil
@@ -84,11 +88,13 @@ private struct ObjectivePromptView: View {
     let initialText: String
     let initialPlan: String
     let recentObjectives: [String]
-    var onSave: (String, String) -> Void
+    let initialEstimate: Int?
+    var onSave: (String, String, Int?) -> Void
     var onSkip: () -> Void
 
     @State private var text = ""
     @State private var plan = ""
+    @State private var estimate: Int?
     @FocusState private var isFocused: Bool
 
     /// Common if-then plans, from "distractibility delay" and re-orienting strategies.
@@ -170,6 +176,22 @@ private struct ObjectivePromptView: View {
                     .onSubmit(save)
             }
 
+            // Estimate (#11): guessing, then seeing the actual time, trains time sense
+            HStack(spacing: 6) {
+                Text("Should take about")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                ForEach([15, 30, 60, 120], id: \.self) { minutes in
+                    Toggle(DurationText.short(Double(minutes) * 60), isOn: Binding(
+                        get: { estimate == minutes },
+                        set: { estimate = $0 ? minutes : nil }
+                    ))
+                    .toggleStyle(.button)
+                    .controlSize(.small)
+                }
+                Spacer(minLength: 0)
+            }
+
             HStack {
                 Button("Skip") {
                     onSkip()
@@ -196,13 +218,14 @@ private struct ObjectivePromptView: View {
         .onAppear {
             text = initialText
             plan = initialPlan
+            estimate = initialEstimate
             isFocused = true
         }
     }
 
     private func save() {
         guard !trimmed(text).isEmpty else { return }
-        onSave(trimmed(text), trimmed(plan))
+        onSave(trimmed(text), trimmed(plan), estimate)
     }
 
     private func trimmed(_ value: String) -> String {

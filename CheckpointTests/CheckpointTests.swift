@@ -542,6 +542,32 @@ struct ObjectiveTrackerTests {
         #expect(tracker.activeSeconds() == 40 * 60.0)
     }
 
+    @Test func backdatedIdleIsExcluded() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        clock.advance(minutes: 30)
+        // Idle detected 5 min after the last input: backdate the away period to that input
+        tracker.beginAway(at: clock.time.addingTimeInterval(-5 * 60))
+        clock.advance(minutes: 10)
+        tracker.endAway(at: clock.time.addingTimeInterval(-30))  // input resumed 30 s ago
+        #expect(tracker.activeSeconds() == 25 * 60.0 + 30)
+    }
+
+    @Test func backdatedAwayNeverOverlapsPreviousAway() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(objective: "Write report", ifThenPlan: nil)
+        clock.advance(minutes: 10)
+        tracker.beginAway()
+        clock.advance(minutes: 10)
+        tracker.endAway()                               // away 10:10–10:20
+        tracker.beginAway(at: clock.time.addingTimeInterval(-15 * 60))  // would start 10:05
+        clock.advance(minutes: 5)
+        tracker.endAway()                               // clamped: away 10:20–10:25
+        #expect(tracker.activeSeconds() == 10 * 60.0)
+    }
+
     @Test func sameObjectiveKeepsSession() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)
@@ -672,5 +698,45 @@ struct ParkedThoughtsTests {
         store.markDone(store.open[0].id)
         let reloaded = ParkedThoughts(defaults: defaults, url: url)
         #expect(reloaded.open.map(\.text) == ["book dentist"])
+    }
+}
+
+// MARK: - Estimates (#11)
+
+struct EstimateStatsTests {
+
+    private func session(estimate: Int?, activeMinutes: Double) -> ObjectiveSession {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        return ObjectiveSession(
+            id: UUID(), objective: "x", ifThenPlan: nil, estimateMinutes: estimate,
+            startedAt: start, endedAt: start.addingTimeInterval(activeMinutes * 60),
+            awaySeconds: 0, awaySince: nil)
+    }
+
+    @Test func ratioUsesOnlyEstimatedSessions() throws {
+        let sessions = [
+            session(estimate: 30, activeMinutes: 45),   // 1.5×
+            session(estimate: 60, activeMinutes: 60),   // 1×
+            session(estimate: nil, activeMinutes: 200), // ignored
+        ]
+        let ratio = try #require(EstimateStats.ratio(sessions, at: Date()))
+        #expect(abs(ratio - 105.0 / 90.0) < 0.0001)
+    }
+
+    @Test func noEstimatesMeansNoRatio() {
+        #expect(EstimateStats.ratio([session(estimate: nil, activeMinutes: 30)], at: Date()) == nil)
+    }
+
+    @Test func describeRatio() {
+        #expect(EstimateStats.describe(1.04) == "matched your estimates")
+        #expect(EstimateStats.describe(1.4) == "took 1.4× your estimates")
+    }
+
+    @Test func progressTextAndOverrun() {
+        let s = session(estimate: 60, activeMinutes: 80)
+        let end = s.endedAt!
+        #expect(s.progressText(at: end).hasPrefix("1 h 20 min of ~1 h · since "))
+        #expect(s.isOverEstimate(at: end))
+        #expect(!session(estimate: nil, activeMinutes: 80).isOverEstimate(at: end))
     }
 }

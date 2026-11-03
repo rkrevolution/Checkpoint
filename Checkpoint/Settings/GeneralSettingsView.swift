@@ -155,9 +155,9 @@ struct GeneralSettingsView: View {
                                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                                 .lineLimit(2)
                         }
-                        Text("\(DurationText.long(session.activeSeconds(at: context.date))) · since \(session.startedAt.formatted(date: .omitted, time: .shortened))")
+                        Text(session.progressText(at: context.date))
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(session.isOverEstimate(at: context.date) ? .red : .orange)
                             .monospacedDigit()
                         if let plan = session.ifThenPlan {
                             Label("If I drift: \(plan)", systemImage: "arrow.uturn.backward")

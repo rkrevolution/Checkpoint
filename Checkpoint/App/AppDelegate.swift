@@ -19,13 +19,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let parkedThoughts = ParkedThoughts(
         defaults: AppDelegate.dataDefaults, url: AppDelegate.dataURL("parked.jsonl"))
     private var heartbeatTimer: Timer?
+    /// True while no keyboard or mouse input for `idleThreshold` (counted as away for time on objective)
+    private var isIdle = false
+    private static let idleThreshold: TimeInterval = 5 * 60
     var checkpointTimer: CheckpointTimer?
     private var snoozeTimer: DispatchSourceTimer?
     private var windowController: CheckpointWindowController?
     private var welcomeController: WelcomeWindowController?
     private var objectiveController: ObjectivePromptController?
     private var statusItemController: StatusItemController?
-    private var daySummaryController: DaySummaryController?
+    private var todayController: TodayWindowController?
     private let transitionToast = TransitionToast()
     private var cancellables = Set<AnyCancellable>()
     private var todayCheckpointCount = 0
@@ -33,7 +36,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Start of the stretch the checkpoint card reports as "N minutes have passed".
     /// Reset when the timer (re)starts, on return from away, and when a checkpoint is acknowledged.
     private var elapsedSince: Date?
-    private var todayObjectives: [String] = []
     private var hasShownDaySummary = false
 
     // MARK: - Data location
@@ -179,9 +181,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if checkpointTimer == nil {
             startTimer()
         }
-        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
-            self?.objectiveController = nil
+        presentObjectivePrompt {
             log.notice("Objective prompt dismissed")
+        }
+    }
+
+    /// Opens the "What are you working on?" prompt with recent objectives and the current
+    /// estimate, records the estimate on Start, then runs `onDone`.
+    private func presentObjectivePrompt(onDone: @escaping () -> Void) {
+        let session = objectiveTracker.current
+        let oc = ObjectivePromptController(
+            recentObjectives: objectiveTracker.recentObjectives(limit: 10),
+            initialEstimate: session?.estimateMinutes
+        ) { [weak self] in
+            self?.objectiveController = nil
+            onDone()
+        }
+        oc.onEstimate = { [weak self] minutes in
+            guard let self else { return }
+            // Apply the new objective now (the defaults observer runs later) so the
+            // estimate lands on the right session
+            self.objectiveTracker.objectiveChanged(to: UserDefaults.standard.string(forKey: "currentObjective") ?? "")
+            self.objectiveTracker.estimateChanged(to: minutes)
         }
         objectiveController = oc
         oc.show()
@@ -283,7 +304,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let today = Calendar.current.startOfDay(for: Date())
         if let lastDate = lastCheckpointDate, Calendar.current.startOfDay(for: lastDate) != today {
             todayCheckpointCount = 0
-            todayObjectives = []
             hasShownDaySummary = false
         }
     }
@@ -381,10 +401,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         todayCheckpointCount += 1
         lastCheckpointDate = Date()
 
-        let currentObj = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
-        if !currentObj.isEmpty, !todayObjectives.contains(currentObj) {
-            todayObjectives.append(currentObj)
-        }
 
         // Play sound if enabled
         if UserDefaults.standard.bool(forKey: "playSoundOnCheckpoint") {
@@ -392,7 +408,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSSound(named: NSSound.Name(soundName))?.play()
         }
 
-        log.notice("Presenting checkpoint: \(questions.count) questions, objective='\(currentObj)'")
+        log.notice("Presenting checkpoint: \(questions.count) questions")
         presentCheckpoint(session: session, snoozeCount: 0)
     }
 
@@ -539,28 +555,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard !hasShownDaySummary, todayCheckpointCount > 0 else { return }
         hasShownDaySummary = true
 
-        let controller = DaySummaryController(
-            checkpointCount: todayCheckpointCount,
-            objectiveTimes: todayObjectiveTimes(),
-            parkedThoughts: parkedThoughts.open.map(\.text)
-        )
-        daySummaryController = controller
-        controller.show()
+        showToday(headline: "End of active hours")
     }
 
     // MARK: - Settings Observation
 
-    /// Today's objectives with total active time, longest first.
-    private func todayObjectiveTimes() -> [(objective: String, seconds: TimeInterval)] {
-        let now = Date()
-        var totals: [String: TimeInterval] = [:]
-        for session in objectiveTracker.todaySessions() {
-            totals[session.objective, default: 0] += session.activeSeconds(at: now)
+    // MARK: - Today window
+
+    @objc func showTodayFromMenu() {
+        showToday(headline: nil)
+    }
+
+    private func showToday(headline: String?) {
+        if let window = todayController?.window, window.isVisible, headline == nil {
+            todayController?.show()
+            return
         }
-        for objective in todayObjectives where totals[objective] == nil {
-            totals[objective] = 0
-        }
-        return totals.map { ($0.key, $0.value) }.sorted { $0.seconds > $1.seconds }
+        todayController?.close()
+        let controller = TodayWindowController(
+            tracker: objectiveTracker,
+            parked: parkedThoughts,
+            loadCheckIns: { [weak self] in (try? self?.responseLog.loadAll()) ?? [] },
+            headline: headline
+        )
+        todayController = controller
+        controller.show()
     }
 
     private func observeObjectiveChanges() {
@@ -577,13 +596,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] plan in self?.objectiveTracker.ifThenPlanChanged(to: plan) }
             .store(in: &cancellables)
 
-        // Lets the tracker exclude time the app wasn't running after a relaunch
-        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.objectiveTracker.heartbeat() }
+        // Heartbeat lets the tracker exclude time the app wasn't running after a relaunch;
+        // the idle check excludes time at the desk with no input before the display sleeps
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.objectiveTracker.heartbeat()
+                self?.checkIdle()
+            }
         }
-        timer.tolerance = 15
+        timer.tolerance = 10
         RunLoop.main.add(timer, forMode: .common)
         heartbeatTimer = timer
+    }
+
+    /// Counts long stretches without keyboard or mouse input as away (backdated to the last input).
+    /// Only affects time on objective, not check-in scheduling.
+    private func checkIdle() {
+        guard awayReasons.isEmpty else { return }  // sleep/lock/screensaver already count as away
+        let anyInput = CGEventType(rawValue: ~0)!
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
+        if !isIdle, idle >= Self.idleThreshold {
+            isIdle = true
+            objectiveTracker.beginAway(at: Date().addingTimeInterval(-idle))
+            log.notice("Idle for \(Int(idle))s: not counting it as time on objective")
+        } else if isIdle, idle < Self.idleThreshold {
+            isIdle = false
+            objectiveTracker.endAway(at: Date().addingTimeInterval(-idle))
+            log.notice("Input resumed")
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -755,15 +795,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func resumeCheckpoints() {
         // Re-prompt for objective on resume, then restart timer
-        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
-            self?.objectiveController = nil
+        presentObjectivePrompt { [weak self] in
             let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
             self?.checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
             self?.elapsedSince = Date()
             self?.appState.transition(to: .idle)
         }
-        objectiveController = oc
-        oc.show()
     }
 
     @objc func openPreferences() {
@@ -784,15 +821,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func updateObjectiveFromMenu() {
         let oldObjective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
-        let oc = ObjectivePromptController(recentObjectives: objectiveTracker.recentObjectives(limit: 10)) { [weak self] in
-            self?.objectiveController = nil
+        presentObjectivePrompt { [weak self] in
             let newObjective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
             if oldObjective != newObjective {
                 self?.transitionToast.show(from: oldObjective, to: newObjective)
             }
         }
-        objectiveController = oc
-        oc.show()
     }
 
     /// Manual check-in: an explicit request, so it skips the schedule and Focus gates.
