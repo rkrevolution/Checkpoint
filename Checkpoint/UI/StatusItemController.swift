@@ -24,6 +24,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func setup() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.imagePosition = .imageLeading
+        #if DEBUG
+        // Tell a Debug copy apart from an installed release copy at a glance
+        item.button?.contentTintColor = .systemOrange
+        #endif
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -125,11 +129,15 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
+        let today = action("Today\u{2026}", #selector(AppDelegate.showTodayFromMenu), app)
+        today.keyEquivalent = "t"
+        menu.addItem(today)
+        menu.addItem(.separator())
+
         // What you're working on, and for how long
         if let session = app.objectiveTracker.current {
             menu.addItem(disabled("On: \(session.objective)"))
-            let since = session.startedAt.formatted(date: .omitted, time: .shortened)
-            menu.addItem(disabled("\(DurationText.long(session.activeSeconds(at: Date()))) · since \(since)"))
+            menu.addItem(disabled(session.progressText(at: Date())))
             if let plan = session.ifThenPlan {
                 menu.addItem(disabled("If I drift: \(plan)"))
             }

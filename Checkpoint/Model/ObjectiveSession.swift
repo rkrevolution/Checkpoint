@@ -6,6 +6,8 @@ nonisolated struct ObjectiveSession: Codable, Equatable, Identifiable {
     let id: UUID
     let objective: String
     var ifThenPlan: String?
+    /// The user's guess at how long this will take (#11)
+    var estimateMinutes: Int? = nil
     let startedAt: Date
     var endedAt: Date?
     var awaySeconds: TimeInterval
@@ -19,6 +21,42 @@ nonisolated struct ObjectiveSession: Codable, Equatable, Identifiable {
             away += max(0, end.timeIntervalSince(since))
         }
         return max(0, end.timeIntervalSince(startedAt) - away)
+    }
+}
+
+extension ObjectiveSession {
+    /// "1 h 20 min of ~1 h · since 9:22", or "1 h 20 min · since 9:22" without an estimate.
+    nonisolated func progressText(at now: Date) -> String {
+        let active = DurationText.long(activeSeconds(at: now))
+        let since = startedAt.formatted(date: .omitted, time: .shortened)
+        if let estimateMinutes {
+            return "\(active) of ~\(DurationText.long(Double(estimateMinutes) * 60)) · since \(since)"
+        }
+        return "\(active) · since \(since)"
+    }
+
+    nonisolated func isOverEstimate(at now: Date) -> Bool {
+        guard let estimateMinutes else { return false }
+        return activeSeconds(at: now) > Double(estimateMinutes) * 60
+    }
+}
+
+/// Estimate vs actual (#11): how much longer (or shorter) tasks took than the user guessed.
+enum EstimateStats {
+    /// Total actual time divided by total estimated time, over sessions that have an estimate
+    /// and at least a minute of work. 1.4 means tasks took 40% longer than estimated.
+    nonisolated static func ratio(_ sessions: [ObjectiveSession], at now: Date) -> Double? {
+        let estimated = sessions.filter { ($0.estimateMinutes ?? 0) > 0 && $0.activeSeconds(at: now) >= 60 }
+        let estimate = estimated.reduce(0.0) { $0 + Double($1.estimateMinutes!) * 60 }
+        let actual = estimated.reduce(0.0) { $0 + $1.activeSeconds(at: now) }
+        guard estimate > 0 else { return nil }
+        return actual / estimate
+    }
+
+    /// "took 1.4× your estimates", "matched your estimates", "took 0.7× your estimates"
+    nonisolated static func describe(_ ratio: Double) -> String {
+        if abs(ratio - 1) < 0.1 { return "matched your estimates" }
+        return String(format: "took %.1f× your estimates", ratio)
     }
 }
 

@@ -27,7 +27,7 @@ flowchart TD
     Snoozed -->|"snooze limit, auto-dismiss"| Work
     Card -.->|"snooze limit, force open:<br/>no Not now button (U4)"| Card
 
-    Work -->|"active hours end<br/>(only if enabled, U5)"| Summary["Day summary<br/>count + objectives"]
+    Work -->|"menu: Today… or<br/>active hours end"| Summary["Today window<br/>time per objective · estimate vs actual<br/>check-in answers · parked"]
 
     Work -.->|"menu: Update Objective…"| Objective
     Work -.->|"menu: Park a Thought…"| Parked[("Parked list<br/>menu + day summary")]
@@ -77,7 +77,7 @@ stateDiagram-v2
 | U2 | The menu bar counts down to the **next check-in**. | It's about the app, not your time, and it **defeats the jitter**: research favours unpredictable cues, but a visible countdown lets you anticipate and brace. | ✅ Fixed: menu bar shows time on current objective (#10); countdown is an opt-in setting. |
 | U3 | "Got it" is the only response; the question has no answer. | Becomes a reflex; History learns nothing. | ✅ Fixed: one-tap On track / Drifted / Switched; Drifted shows the plan and a park field, Switched picks a recent objective (#12, #34). Answers are saved to History. |
 | U4 | At the snooze limit with "force open", the Not now button silently disappears. | Feels broken if you don't know why. | ✅ Fixed: the card says "Snooze limit reached". |
-| U5 | The day summary only appears if active hours are on (off by default). | Most users never see the end-of-day review. | Partly: the summary now lists time per objective and parked thoughts. Still only shown when active hours end; a "Today" window is next. |
+| U5 | The day summary only appears if active hours are on (off by default). | Most users never see the end-of-day review. | ✅ Fixed: a Today window (menu › Today…, any time) with time per objective, estimates vs actual, check-in answers and parked thoughts; it also opens when active hours end. |
 | U6 | The card says "N minutes have passed", which mostly restates the interval. | Weak time cue. | ✅ Fixed: card shows "for 2 h 40 min · since 9:10" under the objective, and time since last check-in. |
 | U7 | First launch shows two windows back to back (Welcome, then objective). | Feels like setup friction. | Ask for the objective on the Welcome screen. |
 | U8 | The Preferences tab "Notifications" holds sound, timing, snooze, overlay and Focus settings, but the app sends no notifications. | Users look in the wrong place. | ✅ Fixed: tab renamed "Check-ins". |

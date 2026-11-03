@@ -18,6 +18,8 @@ final class ObjectiveTracker: ObservableObject {
     private let now: () -> Date
     private let sessionsFile: JSONLinesFile<ObjectiveSession>
     private let calendar = Calendar.current
+    /// End of the last away period, so a backdated start never overlaps time already excluded.
+    private var lastAwayEndedAt: Date?
 
     private static let currentKey = "currentObjectiveSession"
     private static let lastSeenKey = "objectiveTrackerLastSeenAt"
@@ -83,17 +85,31 @@ final class ObjectiveTracker: ObservableObject {
         save()
     }
 
-    func beginAway() {
-        guard var session = current, session.awaySince == nil else { return }
-        session.awaySince = now()
+    func estimateChanged(to minutes: Int?) {
+        guard var session = current else { return }
+        session.estimateMinutes = (minutes ?? 0) > 0 ? minutes : nil
         current = session
         save()
     }
 
-    func endAway() {
+    /// Starts an away period, optionally backdated (e.g. to the last keyboard or mouse input).
+    func beginAway(at time: Date? = nil) {
+        guard var session = current, session.awaySince == nil else { return }
+        let t = now()
+        var start = min(time ?? t, t)
+        if let lastAwayEndedAt { start = max(start, lastAwayEndedAt) }
+        session.awaySince = max(start, session.startedAt)
+        current = session
+        save()
+    }
+
+    /// Ends the away period, optionally backdated (e.g. to when input resumed).
+    func endAway(at time: Date? = nil) {
         guard var session = current, let since = session.awaySince else { return }
-        session.awaySeconds += max(0, now().timeIntervalSince(since))
+        let end = max(since, min(time ?? now(), now()))
+        session.awaySeconds += end.timeIntervalSince(since)
         session.awaySince = nil
+        lastAwayEndedAt = end
         current = session
         save()
     }
@@ -108,9 +124,17 @@ final class ObjectiveTracker: ObservableObject {
     /// Today's sessions (finished and current), oldest first.
     func todaySessions() -> [ObjectiveSession] {
         let t = now()
-        let finished = (try? sessionsFile.loadAll()) ?? []
-        let all = finished + (current.map { [$0] } ?? [])
-        return all.filter { calendar.isDate($0.startedAt, inSameDayAs: t) }
+        return allSessions().filter { calendar.isDate($0.startedAt, inSameDayAs: t) }
+    }
+
+    /// Sessions that started in the last `days` days (finished and current), oldest first.
+    func sessions(lastDays days: Int) -> [ObjectiveSession] {
+        let cutoff = now().addingTimeInterval(-Double(days) * 24 * 3600)
+        return allSessions().filter { $0.startedAt >= cutoff }
+    }
+
+    private func allSessions() -> [ObjectiveSession] {
+        ((try? sessionsFile.loadAll()) ?? []) + (current.map { [$0] } ?? [])
     }
 
     /// Distinct objectives from the last week, most recent first (for one-tap suggestions).

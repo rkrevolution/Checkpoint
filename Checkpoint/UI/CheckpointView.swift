@@ -118,10 +118,9 @@ struct CheckpointView: View {
                         .multilineTextAlignment(.center)
                 }
                 if let objectiveSession, objectiveSession.objective == currentObjective {
-                    let since = objectiveSession.startedAt.formatted(date: .omitted, time: .shortened)
-                    Text("for \(DurationText.long(objectiveSession.activeSeconds(at: session.timestamp))) · since \(since)")
+                    Text("for " + objectiveSession.progressText(at: session.timestamp))
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(objectiveSession.isOverEstimate(at: session.timestamp) ? .red : .orange)
                         .monospacedDigit()
                 }
             }
