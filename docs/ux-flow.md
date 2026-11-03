@@ -9,14 +9,14 @@ flowchart TD
     Launch([Launch or login]) --> First{First launch?}
     First -- yes --> Welcome["Welcome window<br/>pick an interval"]
     Welcome --> Objective
-    First -- no --> Objective["'What are you working on?'<br/>prompt (U1)"]
+    First -- no --> Objective["'What are you working on?'<br/>recent objectives · optional if-then plan<br/>(U1)"]
     Objective -- "Start / Skip / close" --> Work
 
-    Work["Working<br/>menu bar shows countdown to next check-in (U2)"] -->|"interval ± jitter"| Gates{"Away, paused, Focus,<br/>outside active hours?"}
+    Work["Working<br/>menu bar: time on objective, or ⚠ if check-ins stopped"] -->|"interval ± jitter"| Gates{"Away, paused, Focus,<br/>outside active hours?"}
     Gates -- yes --> Work
     Gates -- no --> Card
 
-    Card["Checkpoint card<br/>time · minutes since last check-in<br/>objective · one question<br/>buttons enabled after 1.5 s"]
+    Card["Checkpoint card<br/>time · time since last check-in<br/>objective · for 2 h 40 min · if-then plan<br/>one question · buttons enabled after 1.5 s"]
     Card -- "Got it (U3)" --> Changed{Objective edited?}
     Changed -- yes --> Toast["Toast: old → new objective"] --> Work
     Changed -- no --> Work
@@ -66,22 +66,24 @@ stateDiagram-v2
 - The objective can be changed in the moment, on the card, with a confirming toast.
 - Away handling is invisible in the right way: nothing appears over the lock screen, and nothing piles up while you're gone.
 
-**Unclear or working against the goal**
+**Unclear or working against the goal** (✅ = fixed on `feat/time-visible`)
 
 | # | Finding | Why it matters | Fix |
 |---|---|---|---|
 | U1 | The objective prompt opens on **every** launch, including login, and pulls focus. | At login it competes with everything else starting; often dismissed unread. | Keep, but only re-ask if the objective is from a previous day; otherwise just confirm in the menu. |
-| U2 | The menu bar counts down to the **next check-in**. | It's about the app, not your time, and it **defeats the jitter**: research favours unpredictable cues, but a visible countdown lets you anticipate and brace. | Show **time on current objective** instead (#10); keep "next check-in" inside the menu. |
+| U2 | The menu bar counts down to the **next check-in**. | It's about the app, not your time, and it **defeats the jitter**: research favours unpredictable cues, but a visible countdown lets you anticipate and brace. | ✅ Fixed: menu bar shows time on current objective (#10); countdown is an opt-in setting. |
 | U3 | "Got it" is the only response; the question has no answer. | Becomes a reflex; History learns nothing. | One-tap On track / Drifted / Switched (#12). |
-| U4 | At the snooze limit with "force open", the Not now button silently disappears. | Feels broken if you don't know why. | Show "Snooze limit reached" on the card. |
+| U4 | At the snooze limit with "force open", the Not now button silently disappears. | Feels broken if you don't know why. | ✅ Fixed: the card says "Snooze limit reached". |
 | U5 | The day summary only appears if active hours are on (off by default). | Most users never see the end-of-day review. | Offer it at a chosen time or from the menu ("Today so far…"); expand with time per objective (#24, #21). |
-| U6 | The card says "N minutes have passed", which mostly restates the interval. | Weak time cue. | "On *X* for 2 h 40 min (since 9:10)" (#10). |
+| U6 | The card says "N minutes have passed", which mostly restates the interval. | Weak time cue. | ✅ Fixed: card shows "for 2 h 40 min · since 9:10" under the objective, and time since last check-in. |
 | U7 | First launch shows two windows back to back (Welcome, then objective). | Feels like setup friction. | Ask for the objective on the Welcome screen. |
-| U8 | The Preferences tab "Notifications" holds sound, timing, snooze, overlay and Focus settings, but the app sends no notifications. | Users look in the wrong place. | Rename to "Check-ins". |
-| U9 | "update" (edit objective on the card) is tiny, low-contrast text. | Hard to discover. | Make it a clear secondary button. |
+| U8 | The Preferences tab "Notifications" holds sound, timing, snooze, overlay and Focus settings, but the app sends no notifications. | Users look in the wrong place. | ✅ Fixed: tab renamed "Check-ins". |
+| U9 | "update" (edit objective on the card) is tiny, low-contrast text. | Hard to discover. | ✅ Fixed: a "Change" button. |
 | U10 | Weekday skipping exists but has no setting (#29). | Feature is invisible. | Add day toggles. |
 | U11 | The app appears in both the Dock and the menu bar. | Unusual for a menu bar utility; clutters ⌘-Tab. | Setting: "Show in Dock" (off by default), with the menu bar as home. |
-| U12 | Nothing tells you if check-ins stopped (#25). | A time-blind user won't notice the absence. | Menu bar warning with a Restart action. |
+| U12 | Nothing tells you if check-ins stopped (#25). | A time-blind user won't notice the absence. | ✅ Fixed: menu bar shows "Check-ins stopped" with the reason and a Restart action. |
+
+**Design decision: objectives are free text with one-tap recent suggestions.** A fixed dropdown can't cover new tasks, but switching back to an earlier task is common with ADHD, and time per objective only adds up when names match. The prompt offers the last week's objectives as buttons.
 
 ## 4. The loop we're building toward
 

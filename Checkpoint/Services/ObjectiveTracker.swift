@@ -112,6 +112,21 @@ final class ObjectiveTracker {
         return all.filter { calendar.isDate($0.startedAt, inSameDayAs: t) }
     }
 
+    /// Distinct objectives from the last week, most recent first (for one-tap suggestions).
+    func recentObjectives(limit: Int = 5) -> [String] {
+        let cutoff = now().addingTimeInterval(-7 * 24 * 3600)
+        let finished = (try? sessionsFile.loadAll()) ?? []
+        var seen = Set<String>()
+        var result: [String] = []
+        for session in (finished + (current.map { [$0] } ?? [])).reversed() where session.startedAt >= cutoff {
+            if seen.insert(session.objective).inserted {
+                result.append(session.objective)
+            }
+            if result.count == limit { break }
+        }
+        return result
+    }
+
     // MARK: - Private
 
     private func start(objective: String, ifThenPlan: String?) {

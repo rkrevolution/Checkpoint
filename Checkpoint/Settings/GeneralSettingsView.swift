@@ -10,6 +10,7 @@ struct GeneralSettingsView: View {
     @AppStorage("checkpointsEnabled") private var checkpointsEnabled = true
     @AppStorage("useActiveHours") private var useActiveHours = false
     @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
+    @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
 
     @State private var launchAtLogin = false
     @State private var previewController: CheckpointWindowController?
@@ -79,6 +80,16 @@ struct GeneralSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section("Menu Bar") {
+                Picker("Show", selection: $menuBarDisplay) {
+                    Text("Time on current objective").tag("objectiveTime")
+                    Text("Countdown to next check-in").tag("countdown")
+                }
+                Text("Time on your objective keeps time visible. A countdown lets you anticipate check-ins, which makes them less effective.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Questions per Check-in") {

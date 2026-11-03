@@ -11,7 +11,7 @@ struct SettingsView: View {
 
             NotificationsSettingsView()
                 .tabItem {
-                    Label("Notifications", systemImage: "bell")
+                    Label("Check-ins", systemImage: "clock.badge.checkmark")
                 }
 
             QuestionsSettingsView()

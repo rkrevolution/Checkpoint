@@ -596,6 +596,18 @@ struct ObjectiveTrackerTests {
         #expect(relaunched.activeSeconds() == 0)
     }
 
+    @Test func recentObjectivesAreDistinctAndNewestFirst() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume(objective: "Report", ifThenPlan: nil)
+        for next in ["Email", "Report", "Slides"] {
+            clock.advance(minutes: 10)
+            tracker.objectiveChanged(to: next)
+        }
+        #expect(tracker.recentObjectives() == ["Slides", "Report", "Email"])
+        #expect(tracker.recentObjectives(limit: 2) == ["Slides", "Report"])
+    }
+
     @Test func emptyObjectiveMeansNoSession() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)

@@ -5,6 +5,8 @@ struct CheckpointView: View {
     let currentObjective: String
     let nextCheckpointEstimate: String
     let checkpointNumber: Int
+    /// Time spent on the current objective (#10), and its if-then plan (#32)
+    let objectiveSession: ObjectiveSession?
     let allowSnooze: Bool
     var onDone: ((CheckpointSession, String?) -> Void)?
     var onSnooze: (() -> Void)?
@@ -21,6 +23,7 @@ struct CheckpointView: View {
          currentObjective: String = "",
          nextCheckpointEstimate: String = "",
          checkpointNumber: Int = 1,
+         objectiveSession: ObjectiveSession? = nil,
          allowSnooze: Bool = true,
          onDone: ((CheckpointSession, String?) -> Void)? = nil,
          onSnooze: (() -> Void)? = nil) {
@@ -28,6 +31,7 @@ struct CheckpointView: View {
         self.currentObjective = currentObjective
         self.nextCheckpointEstimate = nextCheckpointEstimate
         self.checkpointNumber = checkpointNumber
+        self.objectiveSession = objectiveSession
         self.allowSnooze = allowSnooze
         self.onDone = onDone
         self.onSnooze = onSnooze
@@ -45,8 +49,7 @@ struct CheckpointView: View {
                     .opacity(appeared ? 1.0 : 0.0)
                     .animation(.easeOut(duration: 0.4), value: appeared)
 
-                let mins = session.intervalSeconds / 60
-                Text("\(mins) minutes have passed")
+                Text("\(DurationText.long(TimeInterval(session.intervalSeconds))) since your last check-in")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .opacity(appeared ? 1.0 : 0.0)
@@ -108,7 +111,11 @@ struct CheckpointView: View {
 
             // MARK: - Actions (two buttons)
             HStack(spacing: 12) {
-                if allowSnooze {
+                if !allowSnooze {
+                    Text("Snooze limit reached")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                } else {
                     let snoozeMin = max(1, UserDefaults.standard.integer(forKey: "snoozeMinutes"))
                     Button {
                         onSnooze?()
@@ -199,14 +206,27 @@ struct CheckpointView: View {
                         .lineLimit(2)
                 }
 
-                Button {
-                    isEditingObjective = true
-                } label: {
-                    Text("update")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                // Time on this objective: the core time-blindness cue (#10)
+                if let objectiveSession, objectiveSession.objective == displayedObjective {
+                    let since = objectiveSession.startedAt.formatted(date: .omitted, time: .shortened)
+                    Text("for \(DurationText.long(objectiveSession.activeSeconds(at: session.timestamp))) · since \(since)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.orange)
+                        .monospacedDigit()
                 }
-                .buttonStyle(.plain)
+
+                if let plan = objectiveSession?.ifThenPlan {
+                    Label("If I drift: \(plan)", systemImage: "arrow.uturn.backward")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Button("Change") {
+                    isEditingObjective = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
             .padding(.horizontal, 32)
         } else {

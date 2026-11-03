@@ -34,7 +34,7 @@ Every checkpoint is logged. Filter by outcome, export to JSON or CSV.
 
 ## Features
 
-Intervals from 1 min to 2 hours with random jitter. Active hours with overnight ranges. Weekday skipping. Focus/DND awareness — it backs off when macOS says you're busy. Configurable snooze with limits. Menu bar countdown. Start at login. Sleep/wake aware. End-of-day summary. Custom questions. Response history. No network. No telemetry.
+Intervals from 1 min to 2 hours with random jitter. Active hours with overnight ranges. Weekday skipping. Focus/DND awareness — it backs off when macOS says you're busy. Configurable snooze with limits. Time on your current objective in the menu bar (or a countdown, if you prefer). One-tap recent objectives and an optional "if I drift, I will…" plan. A warning if check-ins ever stop. Start at login. Sleep/wake aware. End-of-day summary. Custom questions. Response history. No network. No telemetry.
 
 ## Research basis
 

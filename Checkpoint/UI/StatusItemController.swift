@@ -1,12 +1,21 @@
 import AppKit
 import Combine
 
+/// Menu bar item: shows time on the current objective (or the next check-in countdown,
+/// if the user prefers), a warning if check-ins have stopped, and the app's menu.
+///
+/// The title refreshes on state changes and on a slow timer, and the menu is built only
+/// when it opens, so the app stays idle between check-ins.
 @MainActor
-final class StatusItemController {
+final class StatusItemController: NSObject, NSMenuDelegate {
 
     private var statusItem: NSStatusItem?
     private var updateTimer: Timer?
+    private var cancellables = Set<AnyCancellable>()
     private weak var appDelegate: AppDelegate?
+    private var lastTitle = ""
+    private var lastSymbol = ""
+    private var loggedStallReason: String?
 
     init(appDelegate: AppDelegate) {
         self.appDelegate = appDelegate
@@ -14,149 +23,168 @@ final class StatusItemController {
 
     func setup() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "Checkpoint")
         item.button?.imagePosition = .imageLeading
+        let menu = NSMenu()
+        menu.delegate = self
+        item.menu = menu
         statusItem = item
+
+        appDelegate?.appState.$state
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateDisplay() }
+            .store(in: &cancellables)
+        UserDefaults.standard.publisher(for: \.currentObjective)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateDisplay() }
+            .store(in: &cancellables)
+
         updateDisplay()
-        startUpdateTimer()
+        // Minute-resolution display: a slow, tolerant timer keeps wake-ups rare
+        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateDisplay() }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        updateTimer = timer
     }
+
+    func stop() {
+        updateTimer?.invalidate()
+        updateTimer = nil
+    }
+
+    // MARK: - Title
 
     func updateDisplay() {
         guard let button = statusItem?.button, let appDelegate else { return }
+        let (title, symbol, description) = titleAndSymbol(appDelegate)
 
-        switch appDelegate.appState.state {
-        case .idle:
-            if let next = appDelegate.checkpointTimer?.nextFireDate {
-                let remaining = max(0, Int(next.timeIntervalSinceNow))
-                let mins = remaining / 60
-                let secs = remaining % 60
-                if mins > 0 {
-                    button.title = " \(mins)m"
-                } else {
-                    button.title = " \(secs)s"
-                }
-            } else {
-                button.title = ""
-            }
-            button.image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "Checkpoint")
-
-        case .presenting:
-            button.title = " Active"
-            button.image = NSImage(systemSymbolName: "bubble.left.fill", accessibilityDescription: "Checkpoint active")
-
-        case .snoozed(let until, _):
-            let remaining = max(0, Int(until.timeIntervalSinceNow))
-            let mins = remaining / 60
-            let secs = remaining % 60
-            if mins > 0 {
-                button.title = " \(mins)m"
-            } else {
-                button.title = " \(secs)s"
-            }
-            button.image = NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "Snoozed")
-
-        case .paused:
-            button.title = " Paused"
-            button.image = NSImage(systemSymbolName: "pause.circle", accessibilityDescription: "Paused")
-
-        case .outsideHours:
-            button.title = " Off hours"
-            button.image = NSImage(systemSymbolName: "moon.fill", accessibilityDescription: "Outside hours")
-
-        case .focusModeActive:
-            button.title = " Focus"
-            button.image = NSImage(systemSymbolName: "moon.fill", accessibilityDescription: "Focus mode")
-
-        case .triggered:
-            button.title = ""
-            button.image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "Checkpoint")
+        if let reason = appDelegate.stallReason, reason != loggedStallReason {
+            appDelegate.logStall(reason)
         }
+        loggedStallReason = appDelegate.stallReason
 
-        // Show objective as tooltip
-        let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
-        button.toolTip = objective.isEmpty ? "Checkpoint" : objective
-
-        // Rebuild menu
-        statusItem?.menu = buildMenu()
+        // Only touch the button when something visible changed
+        if title != lastTitle {
+            button.title = title
+            lastTitle = title
+        }
+        if symbol != lastSymbol {
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
+            lastSymbol = symbol
+        }
+        button.toolTip = tooltip(appDelegate)
     }
 
-    private func buildMenu() -> NSMenu {
-        let menu = NSMenu()
-
-        guard let appDelegate else { return menu }
-
-        // State-specific action
-        switch appDelegate.appState.state {
+    private func titleAndSymbol(_ app: AppDelegate) -> (String, String, String) {
+        if app.stallReason != nil {
+            return (" Check-ins stopped", "exclamationmark.triangle.fill", "Check-ins stopped")
+        }
+        switch app.appState.state {
+        case .idle, .triggered:
+            return (" " + idleTitle(app), "sun.max.fill", "Checkpoint")
+        case .presenting:
+            return (" Check-in", "bubble.left.fill", "Checkpoint active")
+        case .snoozed(let until, _):
+            return (" " + DurationText.short(max(60, until.timeIntervalSinceNow)), "clock.arrow.circlepath", "Snoozed")
         case .paused:
-            let resume = NSMenuItem(title: "Resume Checkpoints", action: #selector(AppDelegate.resumeFromMenu), keyEquivalent: "")
-            resume.target = appDelegate
-            menu.addItem(resume)
-        default:
-            let pause = NSMenuItem(title: "Pause Checkpoints", action: #selector(AppDelegate.pauseFromMenu), keyEquivalent: "")
-            pause.target = appDelegate
-            menu.addItem(pause)
+            return (" Paused", "pause.circle", "Paused")
+        case .outsideHours:
+            return (" Off hours", "moon.fill", "Outside active hours")
+        case .focusModeActive:
+            return (" Focus", "moon.fill", "Focus mode")
+        }
+    }
+
+    private func idleTitle(_ app: AppDelegate) -> String {
+        let showCountdown = UserDefaults.standard.string(forKey: "menuBarDisplay") == "countdown"
+        if !showCountdown, let active = app.objectiveTracker.activeSeconds() {
+            return DurationText.short(active)
+        }
+        if showCountdown, let next = app.checkpointTimer?.nextFireDate {
+            return DurationText.short(max(60, next.timeIntervalSinceNow))
+        }
+        return ""
+    }
+
+    private func tooltip(_ app: AppDelegate) -> String {
+        guard let session = app.objectiveTracker.current else { return "Checkpoint" }
+        return "On \(session.objective) for \(DurationText.long(session.activeSeconds(at: Date())))"
+    }
+
+    // MARK: - Menu (built when opened)
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        guard let app = appDelegate else { return }
+        let state = app.appState.state
+
+        if let reason = app.stallReason {
+            menu.addItem(disabled("⚠ Check-ins stopped: \(reason)"))
+            menu.addItem(action("Restart Check-ins", #selector(AppDelegate.restartCheckIns), app))
+            menu.addItem(.separator())
         }
 
-        menu.addItem(NSMenuItem.separator())
-
-        // Next checkpoint info
-        if let next = appDelegate.checkpointTimer?.nextFireDate, appDelegate.appState.state == .idle {
-            let mins = max(1, Int(next.timeIntervalSinceNow / 60))
-            let info = NSMenuItem(title: "Next check-in: ~\(mins) min", action: nil, keyEquivalent: "")
-            info.isEnabled = false
-            menu.addItem(info)
+        // What you're working on, and for how long
+        if let session = app.objectiveTracker.current {
+            menu.addItem(disabled("On: \(session.objective)"))
+            let since = session.startedAt.formatted(date: .omitted, time: .shortened)
+            menu.addItem(disabled("\(DurationText.long(session.activeSeconds(at: Date()))) · since \(since)"))
+            if let plan = session.ifThenPlan {
+                menu.addItem(disabled("If I drift: \(plan)"))
+            }
         } else {
-            let info = NSMenuItem(title: stateLabel(appDelegate.appState.state), action: nil, keyEquivalent: "")
-            info.isEnabled = false
-            menu.addItem(info)
+            menu.addItem(disabled("No objective set"))
         }
+        menu.addItem(action("Update Objective\u{2026}", #selector(AppDelegate.updateObjectiveFromMenu), app))
+        menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem.separator())
-
-        // Current objective (show it, make it tappable to edit)
-        let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
-        if !objective.isEmpty {
-            let objItem = NSMenuItem(title: "Working on: \(objective)", action: nil, keyEquivalent: "")
-            objItem.isEnabled = false
-            menu.addItem(objItem)
+        // Check-in status
+        if state == .idle, let next = app.checkpointTimer?.nextFireDate {
+            menu.addItem(disabled("Next check-in: ~\(max(1, Int(next.timeIntervalSinceNow / 60))) min"))
+        } else {
+            menu.addItem(disabled(stateLabel(state)))
         }
-
-        let updateObj = NSMenuItem(title: "Update Objective\u{2026}", action: #selector(AppDelegate.updateObjectiveFromMenu), keyEquivalent: "")
-        updateObj.target = appDelegate
-        menu.addItem(updateObj)
-
-        menu.addItem(NSMenuItem.separator())
-
-        // Trigger now (not while paused or while a checkpoint is already up)
-        switch appDelegate.appState.state {
+        if let last = app.lastCheckInDate {
+            menu.addItem(disabled("Last check-in: \(last.formatted(date: .omitted, time: .shortened))"))
+        }
+        switch state {
         case .paused, .presenting, .triggered:
             break
         default:
-            let triggerNow = NSMenuItem(title: "Check In Now", action: #selector(AppDelegate.triggerNow), keyEquivalent: "")
-            triggerNow.target = appDelegate
-            menu.addItem(triggerNow)
-            menu.addItem(NSMenuItem.separator())
+            menu.addItem(action("Check In Now", #selector(AppDelegate.triggerNow), app))
         }
+        if state == .paused {
+            menu.addItem(action("Resume Checkpoints", #selector(AppDelegate.resumeFromMenu), app))
+        } else {
+            menu.addItem(action("Pause Checkpoints", #selector(AppDelegate.pauseFromMenu), app))
+        }
+        menu.addItem(.separator())
 
-        let prefs = NSMenuItem(title: "Preferences…", action: #selector(AppDelegate.openPreferences), keyEquivalent: ",")
-        prefs.target = appDelegate
+        let prefs = action("Preferences…", #selector(AppDelegate.openPreferences), app)
+        prefs.keyEquivalent = ","
         menu.addItem(prefs)
 
         #if DEBUG
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(buildDebugMenuItem(appDelegate))
+        menu.addItem(.separator())
+        menu.addItem(buildDebugMenuItem(app))
         #endif
 
-        menu.addItem(NSMenuItem.separator())
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit Checkpoint", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(disabled(AppInfo.displayString))
+    }
 
-        let quit = NSMenuItem(title: "Quit Checkpoint", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.addItem(quit)
+    private func disabled(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
 
-        let version = NSMenuItem(title: AppInfo.displayString, action: nil, keyEquivalent: "")
-        version.isEnabled = false
-        menu.addItem(version)
-
-        return menu
+    private func action(_ title: String, _ selector: Selector, _ target: AnyObject) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
+        item.target = target
+        return item
     }
 
     #if DEBUG
@@ -169,9 +197,8 @@ final class StatusItemController {
             ("Simulate Focus", #selector(AppDelegate.debugToggleFocus), appDelegate.focusObserver.isFocusActive),
             ("Reset First Launch", #selector(AppDelegate.debugResetFirstLaunch), false),
         ]
-        for (title, action, isOn) in items {
-            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-            item.target = appDelegate
+        for (title, selector, isOn) in items {
+            let item = action(title, selector, appDelegate)
             item.state = isOn ? .on : .off
             submenu.addItem(item)
         }
@@ -190,18 +217,5 @@ final class StatusItemController {
         case .outsideHours: return "Outside active hours"
         case .focusModeActive: return "Focus mode active"
         }
-    }
-
-    private func startUpdateTimer() {
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateDisplay()
-            }
-        }
-    }
-
-    func stop() {
-        updateTimer?.invalidate()
-        updateTimer = nil
     }
 }
