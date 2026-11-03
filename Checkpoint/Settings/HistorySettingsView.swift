@@ -6,6 +6,7 @@ struct HistorySettingsView: View {
     @State private var sessions: [CheckpointSession] = []
     @State private var filterOutcome: CheckpointSession.Outcome?
     @State private var showingClearConfirmation = false
+    @State private var errorMessage: String?
 
     @AppStorage("logResponses") private var logResponses = true
 
@@ -114,16 +115,32 @@ struct HistorySettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            sessions = (try? responseLog.loadAll()) ?? []
+            do {
+                sessions = try responseLog.loadAll()
+            } catch {
+                errorMessage = "Couldn't load history: \(error.localizedDescription)"
+            }
         }
         .alert("Clear All History?", isPresented: $showingClearConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Clear", role: .destructive) {
-                try? responseLog.deleteAll()
-                sessions = []
+                do {
+                    try responseLog.deleteAll()
+                    sessions = []
+                } catch {
+                    errorMessage = "Couldn't clear history: \(error.localizedDescription)"
+                }
             }
         } message: {
             Text("This will permanently delete all checkpoint history. This cannot be undone.")
+        }
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
         }
     }
 
@@ -150,10 +167,17 @@ struct HistorySettingsView: View {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            if let data = try? encoder.encode(sessions) {
-                try? data.write(to: url)
+            do {
+                try encoder.encode(sessions).write(to: url, options: .atomic)
+            } catch {
+                errorMessage = "Couldn't export JSON: \(error.localizedDescription)"
             }
         }
+    }
+
+    /// Quotes a CSV field per RFC 4180 (embedded quotes doubled; commas and newlines kept inside quotes).
+    nonisolated static func csvField(_ value: String) -> String {
+        "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 
     // For previews: inject sample data
@@ -169,14 +193,22 @@ struct HistorySettingsView: View {
         panel.nameFieldStringValue = "checkpoint-history.csv"
         panel.begin { result in
             guard result == .OK, let url = panel.url else { return }
+            let formatter = ISO8601DateFormatter()
             var csv = "timestamp,outcome,questions,responses\n"
             for session in sessions {
-                let ts = ISO8601DateFormatter().string(from: session.timestamp)
-                let qs = session.questionsShown.map(\.text).joined(separator: "; ")
-                let rs = session.responses.map(\.text).joined(separator: "; ")
-                csv += "\"\(ts)\",\"\(session.outcome.rawValue)\",\"\(qs)\",\"\(rs)\"\n"
+                let fields = [
+                    formatter.string(from: session.timestamp),
+                    session.outcome.rawValue,
+                    session.questionsShown.map(\.text).joined(separator: "; "),
+                    session.responses.map(\.text).joined(separator: "; "),
+                ]
+                csv += fields.map(Self.csvField).joined(separator: ",") + "\n"
             }
-            try? csv.write(to: url, atomically: true, encoding: .utf8)
+            do {
+                try csv.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                errorMessage = "Couldn't export CSV: \(error.localizedDescription)"
+            }
         }
     }
 }

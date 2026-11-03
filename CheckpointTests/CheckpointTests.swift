@@ -484,3 +484,16 @@ private func calendar(hour: Int) -> Date {
     components.minute = 30
     return Calendar.current.date(from: components)!
 }
+
+// MARK: - CSV Export Tests
+
+struct CSVExportTests {
+
+    @Test func csvFieldEscapesQuotes() {
+        #expect(HistorySettingsView.csvField("say \"hi\"") == "\"say \"\"hi\"\"\"")
+    }
+
+    @Test func csvFieldKeepsCommasAndNewlinesQuoted() {
+        #expect(HistorySettingsView.csvField("a, b\nc") == "\"a, b\nc\"")
+    }
+}
