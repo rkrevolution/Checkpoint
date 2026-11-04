@@ -94,9 +94,8 @@ struct TodayView: View {
         let goals = Goals.current()
         if !goals.isEmpty {
             section("Goals") {
-                ForEach(goals, id: \.self) { goal in
-                    Label(goal, systemImage: "scope")
-                        .font(.system(size: 13))
+                ForEach(Array(goals.enumerated()), id: \.offset) { _, goal in
+                    GoalRow(goal: goal)
                 }
             }
         }

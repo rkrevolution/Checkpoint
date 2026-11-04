@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// The checkpoint card. Hierarchy, top to bottom:
-/// 1. the real time (largest), 2. what you're on and for how long, 3. one grounding question,
-/// 4. a one-tap answer: On track / Drifted / Switched (#12). Drifted shows the if-then plan and
+/// 1. the real time (largest), 2. what you're on and for how long, then your goals in full (if set),
+/// 3. one grounding question, 4. a one-tap answer: On track / Drifted / Switched (#12). Drifted shows the if-then plan and
 /// a field to park the distraction (#34); Switched picks a recent objective or a new one.
 struct CheckpointView: View {
     let session: CheckpointSession
@@ -27,6 +27,9 @@ struct CheckpointView: View {
 
     @AppStorage("showBreathingCue") private var showBreathingCue = false
     private let goals = Goals.current()
+    private let visibleToScreenCapture = !ScreenCapturePrivacy.isHidden()
+    /// Side inset shared by the goals box and the divider under it, so their edges line up
+    private let sectionInset: CGFloat = 24
 
     init(session: CheckpointSession,
          currentObjective: String = "",
@@ -52,16 +55,14 @@ struct CheckpointView: View {
                 .padding(.bottom, 14)
 
             objectiveSection
-                .padding(.bottom, goals.isEmpty ? 14 : 6)
+                .padding(.bottom, 14)
 
             if !goals.isEmpty {
-                Text("Goals: " + goals.joined(separator: " · "))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
+                GoalsPanel(goals: goals)
+                    .padding(.horizontal, sectionInset)
+                    .padding(.bottom, 16)
+                    .opacity(appeared ? 1 : 0)
+                    .animation(.easeOut(duration: 0.4).delay(0.3), value: appeared)
             }
 
             // With no objective, the "What are you working on?" picker above is the only question
@@ -69,7 +70,7 @@ struct CheckpointView: View {
                 Rectangle()
                     .fill(.separator)
                     .frame(height: 0.5)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, sectionInset)
                     .padding(.bottom, 14)
 
                 switch mode {
@@ -318,6 +319,13 @@ struct CheckpointView: View {
                 .disabled(!buttonsEnabled)
             }
             Spacer()
+            if visibleToScreenCapture {
+                // Easy to forget it's off before sharing your screen, so say so on the card
+                Label("Visible in screen shares", systemImage: "eye")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .help("Settings › Check-ins › Screen Sharing and Screenshots")
+            }
             Text(checkpointNumber > 0 ? "\u{2713} \(checkpointNumber) today" : "")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)

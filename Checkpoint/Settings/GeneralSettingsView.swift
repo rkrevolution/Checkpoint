@@ -101,7 +101,7 @@ struct GeneralSettingsView: View {
                 TextField("Goal 1", text: $goal1, prompt: Text("e.g. Ship Checkpoint 1.0"))
                 TextField("Goal 2", text: $goal2, prompt: Text("e.g. Run 3× a week"))
                 TextField("Goal 3", text: $goal3, prompt: Text("Optional"))
-                Text("Up to three, kept in view in the menu, on check-ins and in Today.")
+                Text("Up to three, shown in full on every check-in and when you choose what to work on, and kept in the menu and Today.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -131,7 +131,7 @@ struct GeneralSettingsView: View {
 
             Section("Focus Strip") {
                 Toggle("Show my current focus at the top of the screen", isOn: $showFocusPill)
-                Text("A small strip with your objective and time on it. Never takes focus, hidden from screen sharing, and hidden while paused or away. Drag to move; double-click to change.")
+                Text("A small strip with your objective and time on it. Never takes focus, hidden from screen sharing (Settings › Check-ins), and hidden while paused or away. Drag to move; double-click to change.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

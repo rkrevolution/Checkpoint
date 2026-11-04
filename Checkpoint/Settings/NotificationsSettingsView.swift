@@ -9,6 +9,7 @@ struct NotificationsSettingsView: View {
     @AppStorage("afterMaxSnoozeAction") private var afterMaxSnooze = "autoDismiss"
     @AppStorage("respectFocusMode") private var respectFocusMode = true
     @AppStorage("holdDuringCalls") private var holdDuringCalls = true
+    @AppStorage(ScreenCapturePrivacy.key) private var hideFromScreenCapture = ScreenCapturePrivacy.defaultValue
 
     @AppStorage("showBreathingCue") private var showBreathingCue = false
     @AppStorage("fullScreenCheckpoint") private var fullScreenCheckpoint = false
@@ -73,7 +74,15 @@ struct NotificationsSettingsView: View {
                 Toggle("Wait until calls end", isOn: $holdDuringCalls)
                 Text(holdDuringCalls
                      ? "On: while any app is using your microphone or camera, a check-in that comes due waits, then appears without sound after the call. Check-ins are not paused or skipped."
-                     : "Off: check-ins appear during calls too (still without showing in screen shares).")
+                     : "Off: check-ins appear during calls too.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Screen Sharing and Screenshots") {
+                Toggle("Hide check-ins from screen sharing and screenshots", isOn: $hideFromScreenCapture)
+                Text(hideFromScreenCapture
+                     ? "On: the check-in card and focus strip never appear in screen shares, recordings or screenshots, so your objective and goals stay private on calls."
+                     : "Off: they appear in screen shares, recordings and screenshots. The card says so in its corner while this is off.")
                     .font(.caption).foregroundStyle(.secondary)
             }
 

@@ -110,6 +110,7 @@ private struct ObjectivePromptView: View {
     @State private var estimate: Int?
     @AppStorage("objectivePromptShowMore") private var showMore = false
     @FocusState private var isFocused: Bool
+    private let goals = Goals.current()
 
     /// Common if-then plans, from "distractibility delay" and re-orienting strategies.
     private let planSuggestions = [
@@ -139,6 +140,9 @@ private struct ObjectivePromptView: View {
                         .foregroundStyle(.orange)
                 }
             }
+
+            // Choosing what to work on is the moment goals matter most
+            GoalsPanel(goals: goals)
 
             // Combo box: type a new objective, or pick a recent one from the dropdown
             HStack(spacing: 4) {

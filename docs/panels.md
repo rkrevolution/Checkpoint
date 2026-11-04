@@ -34,7 +34,7 @@ flowchart LR
 ## Focus strip (optional, off by default)
 - **Why:** keeps what you meant to do in front of you (working memory) without interrupting, for people who don't glance at the menu bar.
 - **Shows:** a small translucent strip at the top of the screen: objective and time on it ("1 h 20 min of ~2 h", red once over the estimate). Same style as the objective-switch toast.
-- **Behaviour:** never takes focus; hidden from screen sharing; hidden while paused, away, or when nothing is tracked. Drag to move (position remembered); double-click to change the objective; **✕** turns it off.
+- **Behaviour:** never takes focus; hidden from screen sharing and screenshots (same setting as the card); hidden while paused, away, or when nothing is tracked. Drag to move (position remembered); double-click to change the objective; **✕** turns it off.
 - **Turn on:** menu › **Show Focus**, or Settings › General › Focus Strip.
 
 ## Menu (click the menu bar item)
@@ -55,7 +55,7 @@ flowchart LR
 - **Shows:**
   1. The time (largest).
   2. Your objective and "for 1 h 40 min · since 9:40" (red once past your estimate).
-  3. Goals (one line).
+  3. **Your goals**, if set: in a quiet box under the objective, one per line and in full (never truncated), so you don't have to hold them in your head while you decide whether you're on track.
   4. One grounding question, answered directly with **On track / Drifted / Switched**.
   5. **Not now** (snooze) and a count of today's check-ins. No "next check-in" time: unpredictability is the point.
 - **Branches:**
@@ -63,7 +63,7 @@ flowchart LR
   - **Drifted:** shows your if-then plan, with a field to *park* what pulled you away ("distractibility delay").
   - **Switched:** pick a recent objective or type a new one; its time starts from here.
   - **No objective set** (prompt skipped): asks only "What are you working on?" with recent objectives.
-- **Never:** over the screensaver or lock screen, or in screen shares and recordings.
+- **Never:** over the screensaver or lock screen. Hidden from screen shares, recordings and screenshots unless you turn that off (Settings › Check-ins › Screen Sharing and Screenshots); while it's off, the card's footer says **Visible in screen shares**.
 - **Buttons wait 1.5 s** so a reflexive keypress can't dismiss it.
 - **Window:** titled "Check-in", standard background (follows light and dark mode), sized to its content.
 
@@ -74,6 +74,7 @@ flowchart LR
   - On **Resume** from pause, and after being away an hour or more: **"Welcome back"** plus "You were on: X · 1 h 40 min today".
   - From the menu (**Set / Change Objective…**), Settings › Now, or the card's **Switched** (inline).
 - **Shows:**
+  - **Your goals**, if set, in the same box as on the card: choosing what to work on is when they matter most.
   - The objective field, with a ⌄ dropdown and **Recent** buttons, so returning to a task is one tap and its time adds up under one name.
   - **More…** (remembers whether you left it open; the label summarizes what's set): **"If I drift, I will…"** with suggestions, and **"Should take about"** 15m / 30m / 1h / 2h.
   - **Skip** and **Start**.
@@ -112,7 +113,7 @@ Clicking the Dock icon opens Settings: it's the app's main window.
 | Section | Why it exists |
 |---|---|
 | **Now** | See and change what the app thinks you're doing, any time |
-| **Goals** | Up to three lines kept in view in the menu, on cards and in Today. Goals only help when visible at the moment you decide. |
+| **Goals** | Up to three lines, shown in full on the check-in card and the objective prompt, and kept in the menu and Today. Goals only help when visible at the moment you decide. |
 | **Start at Login** | The prosthetic only works if it's always running. Also mentions ⌃⌥⌘P. |
 | **Enable Checkpoints** | Master switch. Known issue: overlaps with Pause. |
 | **Check-ins: Every, Randomness** | How often, and how much the timing varies (Off / Low / Medium / High, labelled with the real range at the current interval, e.g. "Medium (±2 min)"). Directly under Now because it's the main setting. |
@@ -120,7 +121,7 @@ Clicking the Dock icon opens Settings: it's the app's main window.
 | **Menu Bar** | Time on objective (default) or a countdown |
 | **Questions per Check-in** | 1–3 grounding questions. Known issue: more than one adds load. |
 | **Preview Checkpoint** | See the card with current settings |
-| **Diagnostics** (collapsed) | For checking that things work: next and last check-in, state, away/idle/call/Focus, Start at Login status, version, data folder; **Copy** for bug reports. Collapsed because knowing when check-ins come makes them less effective. |
+| **Diagnostics** (collapsed) | For checking that things work: next and last check-in, state, away/idle/call/Focus, Start at Login status, screen capture, version, data folder; **Copy** for bug reports. Collapsed because knowing when check-ins come makes them less effective. |
 | **Version, How Checkpoint Works…** | Which build you're on, plus the help panel |
 
 ### Check-ins
@@ -129,7 +130,8 @@ Clicking the Dock icon opens Settings: it's the app's main window.
 | **Sound** | An audible cue helps break hyperfocus. Skipped for check-ins held during a call. |
 | **Snooze** | "Not now" is honest about its length and limited, so it can't become permanent avoidance |
 | **Attention** | Full-screen dim for stronger interruption; optional breathing circle |
-| **Calls** | "Wait until calls end": while the mic or camera is in use, a due check-in waits and appears without sound after the call (not paused or skipped). The card is always hidden from screen sharing. |
+| **Calls** | "Wait until calls end": while the mic or camera is in use, a due check-in waits and appears without sound after the call (not paused or skipped). |
+| **Screen Sharing and Screenshots** | On by default: the card and focus strip stay out of screen shares, recordings and screenshots, so your objective and goals stay private. macOS can't hide a window from sharing but not screenshots, so turn it off to take a screenshot. The card's footer and Diagnostics show when it's off; `-hideFromScreenCapture NO` turns it off for one run. |
 | **Focus** | Respect macOS Focus. Known issue: detection may not work ([#2](https://github.com/rkrevolution/Checkpoint/issues/2)). |
 
 ### Questions

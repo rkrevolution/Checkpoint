@@ -119,6 +119,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "holdDuringCalls": true,
             "showFocusPill": false,
             "menuBarDisplay": "objectiveTime",
+            ScreenCapturePrivacy.key: ScreenCapturePrivacy.defaultValue,
         ])
 
         // Time on the current objective (#24): continue today's session, if any, then keep it in sync.
@@ -150,6 +151,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.dockTile.badgeLabel = "DEV"
         #endif
         log.notice("\(AppInfo.displayString, privacy: .public)")
+        log.notice("Check-ins \(ScreenCapturePrivacy.statusText(), privacy: .public)")
 
         // 5. Setup menu bar status item (running indicator + countdown)
         let sic = StatusItemController(appDelegate: self)
@@ -776,6 +778,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ("On a call", callDetector.isInCall ? "yes" : "no"),
             ("Focus detected", (focusObserver.isFocusActive ? "yes" : "no") + (respectFocus ? "" : " (not respected)")),
             ("Start at Login", login),
+            ("Screen capture", "Check-ins " + ScreenCapturePrivacy.statusText()),
             ("Interval", {
                 let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
                 return "every \(DurationText.long(interval)), randomness \(Randomness.current().label(for: interval))"
