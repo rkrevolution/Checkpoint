@@ -107,14 +107,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 1. Give QuestionBank access to custom questions
         questionBank.customStore = customStore
 
-        // 2. Wire Focus observer → AppState (always observe; setting checked at fire time)
+        // 2. Wire Focus observer → AppState. Only enter focusModeActive when Focus actually holds
+        // check-ins back, so the menu bar never says "Focus" while they keep coming (#50).
         focusObserver.onFocusChanged = { [weak self] isActive in
             guard let self else { return }
+            let blocks = CheckInGate.focusBlocks(isFocusActive: isActive, respectFocus: self.settings.respectFocus)
             // Only move between idle and focusModeActive; never override a manual pause,
             // a snooze, or an open checkpoint.
-            if isActive, self.appState.state == .idle {
+            if blocks, self.appState.state == .idle {
                 self.appState.transition(to: .focusModeActive)
-            } else if !isActive, self.appState.state == .focusModeActive {
+            } else if !blocks, self.appState.state == .focusModeActive {
                 self.appState.transition(to: .idle)
             }
         }
@@ -367,77 +369,66 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Everything `CheckInGate` needs, as of now.
+    private func gateConditions() -> CheckInGate.Conditions {
+        CheckInGate.Conditions(
+            state: appState.state,
+            isAway: !awayReasons.isEmpty,
+            scheduleAllows: scheduleManager.shouldFire(),
+            withinActiveHours: scheduleManager.isWithinActiveHours(),
+            isFocusActive: focusObserver.isFocusActive,
+            respectFocus: settings.respectFocus,
+            isOnCall: callDetector.isInCall,
+            holdDuringCalls: settings.holdDuringCalls
+        )
+    }
+
+    /// The interval timer fired, or a check-in held for a call is being delivered (`afterCall`,
+    /// shown without sound).
     private func handleTimerFire(afterCall: Bool = false) {
         log.notice("handleTimerFire: currentState=\(String(describing: self.appState.state))")
-
-        guard awayReasons.isEmpty else {
-            log.notice("User away (\(self.awayReasons.map(\.rawValue), privacy: .public)), skipping")
-            return
-        }
-
         // Reset daily counters on day boundary regardless of whether checkpoint fires
         resetDayCountersIfNeeded()
 
-        // Recover from outsideHours when hours become active again
-        if appState.state == .outsideHours, scheduleManager.isWithinActiveHours() {
-            log.notice("Recovering from outsideHours → idle")
-            appState.transition(to: .idle)
-            hasShownDaySummary = false
-            // Don't report the off-hours gap as elapsed time; fall back to the interval
-            elapsedSince = nil
-        }
-
-        // Focus is re-checked below on every fire, so don't stay stuck in focusModeActive
-        // (e.g. after "Respect Focus" is turned off while Focus is on)
-        if appState.state == .focusModeActive {
-            appState.transition(to: .idle)
-        }
-
-        // Only fire from idle state
-        guard appState.state == .idle else {
+        let block = CheckInGate.block(.scheduled, gateConditions())
+        log.notice("Gate: \(block.map { "\($0)" } ?? "show", privacy: .public)")
+        switch block {
+        case nil:
+            settle(to: .idle)
+            fireCheckpoint(playSound: !afterCall)
+        case .away:
+            log.notice("User away (\(self.awayReasons.map(\.rawValue), privacy: .public)), skipping")
+        case .paused, .inProgress:
             log.notice("Not idle, skipping. state=\(String(describing: self.appState.state))")
-            if !scheduleManager.isWithinActiveHours() {
+        case .schedule(let outsideActiveHours):
+            if outsideActiveHours {
                 showDaySummaryIfNeeded()
-                appState.transition(to: .outsideHours)
+                settle(to: .outsideHours)
+            } else {
+                settle(to: .idle)
             }
-            return
-        }
-
-        let withinHours = scheduleManager.isWithinActiveHours()
-        let shouldFire = scheduleManager.shouldFire()
-        let focusActive = focusObserver.isFocusActive
-        let respectFocus = settings.respectFocus
-        log.notice("Gate checks: withinHours=\(withinHours), shouldFire=\(shouldFire), focusActive=\(focusActive), respectFocus=\(respectFocus)")
-
-        // Check schedule (active hours, weekday skips, blackout, DND)
-        guard shouldFire else {
-            log.notice("shouldFire=false, checkpoint suppressed")
-            if !withinHours {
-                showDaySummaryIfNeeded()
-                appState.transition(to: .outsideHours)
-            }
-            return
-        }
-
-        // Check Focus mode
-        if respectFocus, focusActive {
-            log.notice("Focus mode active, checkpoint suppressed")
-            appState.transition(to: .focusModeActive)
-            return
-        }
-
-        // On a call: hold the check-in and show it when the call ends (#1)
-        if holdsForCall {
+        case .focus:
+            settle(to: .focusModeActive)
+        case .call:
+            // Show it when the call ends (#1)
             log.notice("Check-in held: on a call")
+            settle(to: .idle)
             checkInHeldForCall = true
-            return
         }
-
-        log.notice("  All gates passed ✓")
-        fireCheckpoint(playSound: !afterCall)
     }
 
-    /// Builds and presents a checkpoint. Callers are responsible for the schedule/Focus gates.
+    /// Moves between the waiting states (idle, outside hours, Focus). Coming back from outside
+    /// active hours starts a new stretch: the off-hours gap isn't reported as elapsed time.
+    private func settle(to waiting: CheckpointState) {
+        if appState.state == .outsideHours, waiting != .outsideHours {
+            log.notice("Recovering from outsideHours")
+            hasShownDaySummary = false
+            elapsedSince = nil
+        }
+        appState.transition(to: waiting)
+    }
+
+    /// Builds and presents a checkpoint. Callers ask `CheckInGate` first.
     private func fireCheckpoint(playSound: Bool = true) {
         let formatter = DateFormatter()
         formatter.timeStyle = .medium
@@ -592,21 +583,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         source.setEventHandler { [weak self] in
             guard let self else { return }
             self.snoozeTimer = nil
-            guard case .snoozed = self.appState.state else { return }
-            let focusBlocks = settings.respectFocus && self.focusObserver.isFocusActive
-            guard self.scheduleManager.shouldFire(), !focusBlocks else {
-                log.notice("Snoozed checkpoint dropped: schedule or Focus no longer allows it")
-                self.appState.transition(to: .idle)
-                self.startNextInterval(after: "snoozed check-in dropped")
-                return
-            }
-            if self.holdsForCall {
+            switch CheckInGate.block(.snoozeReturn, self.gateConditions()) {
+            case nil:
+                self.presentCheckpoint(session: session, snoozeCount: newCount)
+            case .call:
                 log.notice("Snoozed check-in held: on a call")
                 self.appState.transition(to: .idle)
                 self.checkInHeldForCall = true
-                return
+            case .schedule, .focus:
+                log.notice("Snoozed checkpoint dropped: schedule or Focus no longer allows it")
+                self.appState.transition(to: .idle)
+                self.startNextInterval(after: "snoozed check-in dropped")
+            case .away, .paused, .inProgress:
+                break  // cancelled or replaced in the meantime
             }
-            self.presentCheckpoint(session: session, snoozeCount: newCount)
         }
         source.resume()
         snoozeTimer = source
@@ -803,19 +793,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Calls (#1)
 
-    private var holdsForCall: Bool {
-        callDetector.isInCall && settings.holdDuringCalls
-    }
-
     private func callChanged(inCall: Bool) {
         statusItemController?.updateDisplay()
         guard !inCall, checkInHeldForCall else { return }
         checkInHeldForCall = false
-        // The held check-in shows now, quietly, if nothing else rules it out
-        if appState.state == .idle {
-            log.notice("Call ended: showing the held check-in")
-            handleTimerFire(afterCall: true)
-        }
+        // The held check-in shows now, quietly, if the gate still allows it
+        log.notice("Call ended: showing the held check-in")
+        handleTimerFire(afterCall: true)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -1030,17 +1014,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Manual check-in: an explicit request, so it skips the schedule and Focus gates.
+    /// Manual check-in: an explicit request, so the gate skips the schedule, Focus and call checks.
     @objc func triggerNow() {
-        switch appState.state {
-        case .presenting, .triggered, .paused:
-            log.notice("Manual check-in ignored: state=\(String(describing: self.appState.state), privacy: .public)")
+        switch CheckInGate.block(.manual, gateConditions()) {
+        case nil:
+            break
+        case .away:
+            log.notice("Manual check-in ignored: user away")
             return
         default:
-            break
-        }
-        guard awayReasons.isEmpty else {
-            log.notice("Manual check-in ignored: user away")
+            log.notice("Manual check-in ignored: state=\(String(describing: self.appState.state), privacy: .public)")
             return
         }
         log.notice("Manual check-in")

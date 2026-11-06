@@ -19,7 +19,7 @@ final class AppState: ObservableObject {
     }
 }
 
-enum CheckpointState: Equatable {
+nonisolated enum CheckpointState: Equatable {
     case idle
     case triggered
     case presenting

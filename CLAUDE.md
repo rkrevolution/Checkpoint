@@ -54,11 +54,11 @@ Every change follows these; reviews check them.
 
 ## Planned restructure
 
-`AppDelegate.swift` (~1,150 lines) is due to be restructured, behaviour-neutral, in the **Code cleanup** milestone: plan [#68](https://github.com/rkrevolution/Checkpoint/issues/68), in order **#16** typed settings (`AppSettings`, done) → **#17** one `CheckInGate` for "can a check-in show now?" → **#18** split into `CheckInScheduler`, `PresenceMonitor`, `WindowRouter` and `Diagnostics`. Each issue has a detailed plan and acceptance criteria.
+`AppDelegate.swift` (~1,150 lines) is due to be restructured, behaviour-neutral, in the **Code cleanup** milestone: plan [#68](https://github.com/rkrevolution/Checkpoint/issues/68), in order **#16** typed settings (`AppSettings`, done) → **#17** one `CheckInGate` for "can a check-in show now?" (done) → **#18** split into `CheckInScheduler`, `PresenceMonitor`, `WindowRouter` and `Diagnostics`. Each issue has a detailed plan and acceptance criteria.
 
 Until then:
 - **Don't grow `AppDelegate`.** Put new logic in its own type (with tests) and only wire it up in `AppDelegate`.
-- **Don't add new "not now" checks** in individual paths; note them on #17 so the gate covers them.
+- **Don't add "not now" checks** in individual paths; add them to `CheckInGate` with a test row.
 - New settings: add the key, default and typed property to `AppSettings` only.
 
 ## Rules
@@ -72,7 +72,7 @@ Until then:
 - Log with `os.Logger` (subsystem `com.rkrev.checkpoint`, category = type name).
 - Don't swallow errors with `try?` when saving or exporting user data; log them and surface them in the UI where the user acted.
 - Change checkpoint state only via `AppState.transition(to:)`. Never let Focus or other automatic events override `.paused`.
-- Every path that presents a checkpoint must re-check the away state, schedule and Focus gates, except an explicit manual check-in.
+- Every path that presents a checkpoint asks `CheckInGate.block(_:_:)` first (scheduled, snooze return, after a call, manual). Manual requests skip only the schedule, Focus and call checks.
 - Debug-only code goes inside `#if DEBUG`; Release builds must not contain it.
 - The project builds in Swift 5 mode with default `MainActor` isolation. Wrap main-queue notification callbacks in `MainActor.assumeIsolated`, and mark pure helpers `nonisolated` when tests call them synchronously.
 - Preferences go through `AppSettings` (`Checkpoint/Model/AppSettings.swift`): one key, type and default each, no raw string keys elsewhere. Views bind with `@AppStorage(AppSettings.Key.x.rawValue) var x = AppSettings.Default.x`. Never change a key's raw value (it's the stored name). Current work (`currentObjective`, `currentIfThenPlan`) and internal state are not preferences; they belong to their owning type (#68).
