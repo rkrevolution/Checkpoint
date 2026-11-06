@@ -108,9 +108,9 @@ private struct ObjectivePromptView: View {
     @State private var text = ""
     @State private var plan = ""
     @State private var estimate: Int?
-    @AppStorage("objectivePromptShowMore") private var showMore = false
+    @AppStorage(AppSettings.Key.objectivePromptShowMore.rawValue) private var showMore = AppSettings.Default.objectivePromptShowMore
     @FocusState private var isFocused: Bool
-    private let goals = Goals.current()
+    private let goals = AppSettings().goals
 
     /// Common if-then plans, from "distractibility delay" and re-orienting strategies.
     private let planSuggestions = [

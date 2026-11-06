@@ -3,35 +3,42 @@ import Foundation
 import AppKit
 @testable import Checkpoint
 
+/// A throwaway preferences store: tests must never read or write the user's real settings.
+func isolatedSettings() -> AppSettings {
+    AppSettings(UserDefaults(suiteName: "test-\(UUID().uuidString)")!)
+}
+
 // MARK: - ScheduleManager Tests
 
 struct ScheduleManagerTests {
 
     @Test func shouldFireWhenEnabled() async {
         await MainActor.run {
-            let ud = UserDefaults.standard
-            ud.set(true, forKey: "checkpointsEnabled")
-            ud.set(false, forKey: "useActiveHours")
-            ud.set([Int](), forKey: "skipWeekdays")
+            let settings = isolatedSettings()
+            settings.checkInsEnabled = true
+            settings.useActiveHours = false
+            settings.skipWeekdays = []
 
-            let mgr = ScheduleManager()
+            let mgr = ScheduleManager(settings: settings)
             #expect(mgr.shouldFire() == true)
         }
     }
 
     @Test func shouldNotFireWhenDisabled() async {
         await MainActor.run {
-            UserDefaults.standard.set(false, forKey: "checkpointsEnabled")
-            let mgr = ScheduleManager()
+            let settings = isolatedSettings()
+            settings.checkInsEnabled = false
+            let mgr = ScheduleManager(settings: settings)
             #expect(mgr.shouldFire() == false)
-            UserDefaults.standard.set(true, forKey: "checkpointsEnabled")
+            settings.checkInsEnabled = true
         }
     }
 
     @Test func activeHoursOffMeansAlwaysActive() async {
         await MainActor.run {
-            UserDefaults.standard.set(false, forKey: "useActiveHours")
-            let mgr = ScheduleManager()
+            let settings = isolatedSettings()
+            settings.useActiveHours = false
+            let mgr = ScheduleManager(settings: settings)
             // Should be true at any hour
             let midnight = calendar(hour: 0)
             let noon = calendar(hour: 12)
@@ -44,12 +51,12 @@ struct ScheduleManagerTests {
 
     @Test func activeHoursNormalRange() async {
         await MainActor.run {
-            let ud = UserDefaults.standard
-            ud.set(true, forKey: "useActiveHours")
-            ud.set(9, forKey: "activeHoursStart")
-            ud.set(17, forKey: "activeHoursEnd")
+            let settings = isolatedSettings()
+            settings.useActiveHours = true
+            settings.activeHoursStart = 9
+            settings.activeHoursEnd = 17
 
-            let mgr = ScheduleManager()
+            let mgr = ScheduleManager(settings: settings)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 10)) == true)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 9)) == true)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 16)) == true)
@@ -57,57 +64,57 @@ struct ScheduleManagerTests {
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 8)) == false)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 22)) == false)
 
-            ud.set(false, forKey: "useActiveHours")
+            settings.useActiveHours = false
         }
     }
 
     @Test func activeHoursOvernightRange() async {
         await MainActor.run {
-            let ud = UserDefaults.standard
-            ud.set(true, forKey: "useActiveHours")
-            ud.set(22, forKey: "activeHoursStart")
-            ud.set(6, forKey: "activeHoursEnd")
+            let settings = isolatedSettings()
+            settings.useActiveHours = true
+            settings.activeHoursStart = 22
+            settings.activeHoursEnd = 6
 
-            let mgr = ScheduleManager()
+            let mgr = ScheduleManager(settings: settings)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 23)) == true)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 0)) == true)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 3)) == true)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 6)) == false)   // end is exclusive
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 12)) == false)
 
-            ud.set(false, forKey: "useActiveHours")
+            settings.useActiveHours = false
         }
     }
 
     @Test func activeHoursSameStartEndMeansAllDay() async {
         await MainActor.run {
-            let ud = UserDefaults.standard
-            ud.set(true, forKey: "useActiveHours")
-            ud.set(10, forKey: "activeHoursStart")
-            ud.set(10, forKey: "activeHoursEnd")
+            let settings = isolatedSettings()
+            settings.useActiveHours = true
+            settings.activeHoursStart = 10
+            settings.activeHoursEnd = 10
 
-            let mgr = ScheduleManager()
+            let mgr = ScheduleManager(settings: settings)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 0)) == true)
             #expect(mgr.isWithinActiveHours(at: calendar(hour: 15)) == true)
 
-            ud.set(false, forKey: "useActiveHours")
+            settings.useActiveHours = false
         }
     }
 
     @Test func skippedWeekday() async {
         await MainActor.run {
-            let ud = UserDefaults.standard
-            ud.set(true, forKey: "checkpointsEnabled")
-            ud.set(false, forKey: "useActiveHours")
+            let settings = isolatedSettings()
+            settings.checkInsEnabled = true
+            settings.useActiveHours = false
 
             // Get today's weekday and skip it
             let today = Calendar.current.component(.weekday, from: Date())
-            ud.set([today], forKey: "skipWeekdays")
+            settings.skipWeekdays = [today]
 
-            let mgr = ScheduleManager()
+            let mgr = ScheduleManager(settings: settings)
             #expect(mgr.shouldFire() == false)
 
-            ud.set([Int](), forKey: "skipWeekdays")
+            settings.skipWeekdays = []
         }
     }
 }
@@ -118,6 +125,7 @@ struct AppStateTests {
 
     @Test func initialStateIsIdle() async {
         await MainActor.run {
+            let settings = isolatedSettings()
             let state = AppState()
             #expect(state.state == .idle)
         }
@@ -125,6 +133,7 @@ struct AppStateTests {
 
     @Test func transitionChangesState() async {
         await MainActor.run {
+            let settings = isolatedSettings()
             let state = AppState()
             state.transition(to: .paused)
             #expect(state.state == .paused)
@@ -133,6 +142,7 @@ struct AppStateTests {
 
     @Test func duplicateTransitionIgnored() async {
         await MainActor.run {
+            let settings = isolatedSettings()
             let state = AppState()
             state.transition(to: .paused)
             state.transition(to: .paused) // should not crash or change
@@ -142,6 +152,7 @@ struct AppStateTests {
 
     @Test func recordCategoriesKeepsMax6() async {
         await MainActor.run {
+            let settings = isolatedSettings()
             let state = AppState()
             state.recordShownCategories(["a", "b", "c"])
             state.recordShownCategories(["d", "e", "f"])
@@ -153,6 +164,7 @@ struct AppStateTests {
 
     @Test func recordCategoriesTruncatesOld() async {
         await MainActor.run {
+            let settings = isolatedSettings()
             let state = AppState()
             state.recordShownCategories(["a", "b", "c", "d"])
             state.recordShownCategories(["e", "f", "g", "h"])
@@ -165,6 +177,7 @@ struct AppStateTests {
 
     @Test func fullTransitionCycle() async {
         await MainActor.run {
+            let settings = isolatedSettings()
             let state = AppState()
             state.transition(to: .triggered)
             #expect(state.state == .triggered)
@@ -182,7 +195,8 @@ struct QuestionBankTests {
 
     @Test func fallbackQuestionsLoad() async {
         await MainActor.run {
-            let bank = QuestionBank()
+            let settings = isolatedSettings()
+            let bank = QuestionBank(settings: settings)
             // In test target, questions.json may not be in bundle, so fallback loads
             #expect(!bank.bundledQuestions.isEmpty)
             #expect(!bank.bundledCategories.isEmpty)
@@ -191,8 +205,9 @@ struct QuestionBankTests {
 
     @Test func selectQuestionsReturnsRequestedCount() async {
         await MainActor.run {
-            UserDefaults.standard.set([String](), forKey: "disabledQuestionIDs")
-            let bank = QuestionBank()
+            let settings = isolatedSettings()
+            settings.disabledQuestionIDs = []
+            let bank = QuestionBank(settings: settings)
             let selected = bank.selectQuestions(count: 2)
             #expect(selected.count == 2)
         }
@@ -200,8 +215,9 @@ struct QuestionBankTests {
 
     @Test func selectQuestionsNeverExceedsAvailable() async {
         await MainActor.run {
-            UserDefaults.standard.set([String](), forKey: "disabledQuestionIDs")
-            let bank = QuestionBank()
+            let settings = isolatedSettings()
+            settings.disabledQuestionIDs = []
+            let bank = QuestionBank(settings: settings)
             let total = bank.bundledQuestions.count
             let selected = bank.selectQuestions(count: total + 10)
             #expect(selected.count == total)
@@ -210,8 +226,9 @@ struct QuestionBankTests {
 
     @Test func selectQuestionsFavorsCategoryDiversity() async {
         await MainActor.run {
-            UserDefaults.standard.set([String](), forKey: "disabledQuestionIDs")
-            let bank = QuestionBank()
+            let settings = isolatedSettings()
+            settings.disabledQuestionIDs = []
+            let bank = QuestionBank(settings: settings)
             let categoryCount = bank.bundledCategories.count
             // When requesting as many as categories, should get diverse categories
             let selected = bank.selectQuestions(count: min(categoryCount, bank.bundledQuestions.count))
@@ -223,21 +240,23 @@ struct QuestionBankTests {
 
     @Test func selectQuestionsEmptyWhenAllDisabled() async {
         await MainActor.run {
-            let bank = QuestionBank()
+            let settings = isolatedSettings()
+            let bank = QuestionBank(settings: settings)
             let allIds = bank.bundledQuestions.map(\.id)
-            UserDefaults.standard.set(allIds, forKey: "disabledQuestionIDs")
+            settings.disabledQuestionIDs = Set(allIds)
 
             let selected = bank.selectQuestions(count: 3)
             #expect(selected.isEmpty)
 
-            UserDefaults.standard.set([String](), forKey: "disabledQuestionIDs")
+            settings.disabledQuestionIDs = []
         }
     }
 
     @Test func selectQuestionsRespectsRecentCategories() async {
         await MainActor.run {
-            UserDefaults.standard.set([String](), forKey: "disabledQuestionIDs")
-            let bank = QuestionBank()
+            let settings = isolatedSettings()
+            settings.disabledQuestionIDs = []
+            let bank = QuestionBank(settings: settings)
             let allCatIds = bank.bundledCategories.map(\.id)
             // Mark all but one category as recent
             let recentIds = Array(allCatIds.dropLast())
@@ -253,8 +272,9 @@ struct QuestionBankTests {
 
     @Test func selectQuestionsReturnsNoDuplicates() async {
         await MainActor.run {
-            UserDefaults.standard.set([String](), forKey: "disabledQuestionIDs")
-            let bank = QuestionBank()
+            let settings = isolatedSettings()
+            settings.disabledQuestionIDs = []
+            let bank = QuestionBank(settings: settings)
             let selected = bank.selectQuestions(count: 5)
             let ids = selected.map(\.id)
             #expect(Set(ids).count == ids.count)
@@ -321,20 +341,20 @@ struct CheckpointTimerTests {
     /// Throwaway settings, so tests never touch the user's real preferences
     private func defaults(randomness: Randomness) -> UserDefaults {
         let d = UserDefaults(suiteName: "timer-\(UUID().uuidString)")!
-        d.set(randomness.rawValue, forKey: Randomness.key)
+        d.set(randomness.rawValue, forKey: AppSettings.Key.randomness.rawValue)
         return d
     }
 
     @Test func nextFireDateNilWhenStopped() async {
         await MainActor.run {
-            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
+            let timer = CheckpointTimer(settings: AppSettings(defaults(randomness: .off)))
             #expect(timer.nextFireDate == nil)
         }
     }
 
     @Test func startSetsNextFireDate() async {
         await MainActor.run {
-            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
+            let timer = CheckpointTimer(settings: AppSettings(defaults(randomness: .off)))
             timer.start(interval: 300)
             let remaining = timer.nextFireDate!.timeIntervalSinceNow
             #expect(remaining > 290 && remaining <= 301)
@@ -344,7 +364,7 @@ struct CheckpointTimerTests {
 
     @Test func stopClearsFireDate() async {
         await MainActor.run {
-            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
+            let timer = CheckpointTimer(settings: AppSettings(defaults(randomness: .off)))
             timer.start(interval: 300)
             #expect(timer.nextFireDate != nil)
             timer.stop()
@@ -354,7 +374,7 @@ struct CheckpointTimerTests {
 
     @Test func minimumIntervalIs60Seconds() async {
         await MainActor.run {
-            let timer = CheckpointTimer(defaults: defaults(randomness: .off))
+            let timer = CheckpointTimer(settings: AppSettings(defaults(randomness: .off)))
             timer.start(interval: 10) // way below minimum
             #expect(timer.nextFireDate!.timeIntervalSinceNow >= 55)
             timer.stop()
@@ -363,7 +383,7 @@ struct CheckpointTimerTests {
 
     @Test func randomnessStaysWithinItsRange() async {
         await MainActor.run {
-            let timer = CheckpointTimer(defaults: defaults(randomness: .high))
+            let timer = CheckpointTimer(settings: AppSettings(defaults(randomness: .high)))
             for _ in 0..<20 {
                 timer.start(interval: 900)  // high: ±225 s
                 let remaining = timer.nextFireDate!.timeIntervalSinceNow
@@ -404,7 +424,7 @@ struct CheckpointTimerTests {
             d.set(jitter, forKey: Randomness.legacyKey)
             d.set(interval, forKey: "checkpointInterval")
             Randomness.migrate(d)
-            return Randomness.current(d)
+            return AppSettings(d).randomness
         }
         #expect(migrated(jitter: 60, interval: 900) == .low)      // ±1 min at 15 min
         #expect(migrated(jitter: 600, interval: 900) == .high)    // was capped at a quarter
@@ -415,7 +435,7 @@ struct CheckpointTimerTests {
     @Test func noOldSettingMeansMedium() {
         let d = UserDefaults(suiteName: "fresh-\(UUID().uuidString)")!
         Randomness.migrate(d)
-        #expect(Randomness.current(d) == .medium)
+        #expect(AppSettings(d).randomness == .medium)
     }
 }
 
@@ -839,7 +859,7 @@ struct GoalsTests {
         defaults.set("  Ship 1.0 ", forKey: "goal1")
         defaults.set("   ", forKey: "goal2")
         defaults.set("Run 3× a week", forKey: "goal3")
-        #expect(Goals.current(defaults) == ["Ship 1.0", "Run 3× a week"])
+        #expect(AppSettings(defaults).goals == ["Ship 1.0", "Run 3× a week"])
     }
 }
 
@@ -854,7 +874,7 @@ struct ScreenCapturePrivacyTests {
 
     @Test func turningItOffMakesWindowsCapturable() {
         let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
-        defaults.set(false, forKey: ScreenCapturePrivacy.key)
+        defaults.set(false, forKey: AppSettings.Key.hideFromScreenCapture.rawValue)
         #expect(!ScreenCapturePrivacy.isHidden(defaults))
         #expect(ScreenCapturePrivacy.statusText(defaults).hasPrefix("visible"))
         #expect(ScreenCapturePrivacy.sharingType(hidden: false) == .readOnly)
@@ -922,5 +942,87 @@ struct FocusPillPolicyTests {
         #expect(!FocusPillPolicy.shouldShow(enabled: true, hasObjective: false, isPaused: false, isAway: false))
         #expect(!FocusPillPolicy.shouldShow(enabled: true, hasObjective: true, isPaused: true, isAway: false))
         #expect(!FocusPillPolicy.shouldShow(enabled: true, hasObjective: true, isPaused: false, isAway: true))
+    }
+}
+
+// MARK: - AppSettings (#16)
+
+struct AppSettingsTests {
+
+    @Test func unsetSettingsUseTheirDefaults() {
+        let s = isolatedSettings()
+        #expect(s.checkInInterval == TimeInterval(AppSettings.Default.checkInInterval))
+        #expect(s.randomness == .medium)
+        #expect(s.checkInsEnabled)
+        #expect(s.snoozeMinutes == 5)
+        #expect(s.maxSnoozes == 2)
+        #expect(s.afterMaxSnooze == .autoDismiss)
+        #expect(s.respectFocus)
+        #expect(s.holdDuringCalls)
+        #expect(s.hideFromScreenCapture)
+        #expect(s.soundName == "Glass")
+        #expect(s.menuBarDisplay == .objectiveTime)
+        #expect(s.logResponses)
+        #expect(!s.showFocusPill)
+        #expect(s.questionsPerCheckIn == 1)
+        #expect(s.goals.isEmpty)
+    }
+
+    @Test func storedFalseAndZeroAreNotReplacedByDefaults() {
+        let s = isolatedSettings()
+        s.respectFocus = false
+        s.maxSnoozes = 0          // unlimited
+        s.activeHoursStart = 0    // midnight
+        #expect(!s.respectFocus)
+        #expect(s.maxSnoozes == 0)
+        #expect(s.activeHoursStart == 0)
+    }
+
+    @Test func invalidValuesFallBack() {
+        let s = isolatedSettings()
+        s.defaults.set(0, forKey: AppSettings.Key.checkInInterval.rawValue)
+        s.defaults.set(0, forKey: AppSettings.Key.snoozeMinutes.rawValue)
+        s.defaults.set("sometimes", forKey: AppSettings.Key.afterMaxSnooze.rawValue)
+        #expect(s.checkInInterval == 2700)
+        #expect(s.snoozeMinutes == 5)
+        #expect(s.afterMaxSnooze == .autoDismiss)
+    }
+
+    /// Launch arguments (`scripts/run.sh -checkpointInterval 60 -respectFocusMode NO`) arrive as strings
+    @Test func stringValuesFromLaunchArgumentsParse() {
+        let s = isolatedSettings()
+        s.defaults.set("60", forKey: AppSettings.Key.checkInInterval.rawValue)
+        s.defaults.set("NO", forKey: AppSettings.Key.respectFocus.rawValue)
+        #expect(s.checkInInterval == 60)
+        #expect(!s.respectFocus)
+    }
+
+    @Test func snoozeLimit() {
+        let s = isolatedSettings()
+        #expect(s.allowsSnooze(after: 1))
+        #expect(!s.allowsSnooze(after: 2))
+        s.maxSnoozes = 0
+        #expect(s.allowsSnooze(after: 50))
+    }
+
+    /// Raw values are what's stored on disk; renaming one would silently reset a user's setting
+    @Test func storedKeyNamesNeverChange() {
+        #expect(AppSettings.Key.checkInInterval.rawValue == "checkpointInterval")
+        #expect(AppSettings.Key.checkInsEnabled.rawValue == "checkpointsEnabled")
+        #expect(AppSettings.Key.questionsPerCheckIn.rawValue == "questionsPerCheckpoint")
+        #expect(AppSettings.Key.maxSnoozes.rawValue == "maxSnoozesPerCheckpoint")
+        #expect(AppSettings.Key.afterMaxSnooze.rawValue == "afterMaxSnoozeAction")
+        #expect(AppSettings.Key.playSound.rawValue == "playSoundOnCheckpoint")
+        #expect(AppSettings.Key.respectFocus.rawValue == "respectFocusMode")
+        #expect(AppSettings.Key.fullScreenCheckIn.rawValue == "fullScreenCheckpoint")
+        #expect(Set(AppSettings.Key.allCases.map(\.rawValue)).count == AppSettings.Key.allCases.count)
+    }
+
+    @Test func goalsSkipBlankLines() {
+        let s = isolatedSettings()
+        s.defaults.set("Ship 1.0", forKey: AppSettings.Key.goal1.rawValue)
+        s.defaults.set("   ", forKey: AppSettings.Key.goal2.rawValue)
+        s.defaults.set(" Run ", forKey: AppSettings.Key.goal3.rawValue)
+        #expect(s.goals == ["Ship 1.0", "Run"])
     }
 }

@@ -7,22 +7,22 @@ struct GeneralSettingsView: View {
     @EnvironmentObject private var objectiveTracker: ObjectiveTracker
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var commands: AppCommands
-    @AppStorage("checkpointInterval") private var intervalSeconds = 2700
-    @AppStorage("activeHoursStart") private var activeHoursStart = 8
-    @AppStorage("activeHoursEnd") private var activeHoursEnd = 18
-    @AppStorage("checkpointsEnabled") private var checkpointsEnabled = true
-    @AppStorage("useActiveHours") private var useActiveHours = false
-    @AppStorage("questionsPerCheckpoint") private var questionsPerCheckpoint = 1
-    @AppStorage("menuBarDisplay") private var menuBarDisplay = "objectiveTime"
-    @AppStorage("showFocusPill") private var showFocusPill = false
-    @AppStorage(Randomness.key) private var randomness = Randomness.medium.rawValue
+    @AppStorage(AppSettings.Key.checkInInterval.rawValue) private var intervalSeconds = AppSettings.Default.checkInInterval
+    @AppStorage(AppSettings.Key.activeHoursStart.rawValue) private var activeHoursStart = AppSettings.Default.activeHoursStart
+    @AppStorage(AppSettings.Key.activeHoursEnd.rawValue) private var activeHoursEnd = AppSettings.Default.activeHoursEnd
+    @AppStorage(AppSettings.Key.checkInsEnabled.rawValue) private var checkpointsEnabled = AppSettings.Default.checkInsEnabled
+    @AppStorage(AppSettings.Key.useActiveHours.rawValue) private var useActiveHours = AppSettings.Default.useActiveHours
+    @AppStorage(AppSettings.Key.questionsPerCheckIn.rawValue) private var questionsPerCheckpoint = AppSettings.Default.questionsPerCheckIn
+    @AppStorage(AppSettings.Key.menuBarDisplay.rawValue) private var menuBarDisplay = AppSettings.Default.menuBarDisplay
+    @AppStorage(AppSettings.Key.showFocusPill.rawValue) private var showFocusPill = AppSettings.Default.showFocusPill
+    @AppStorage(AppSettings.Key.randomness.rawValue) private var randomness = AppSettings.Default.randomness
     @State private var showDiagnostics = false
-    @AppStorage("goal1") private var goal1 = ""
-    @AppStorage("goal2") private var goal2 = ""
-    @AppStorage("goal3") private var goal3 = ""
+    @AppStorage(AppSettings.Key.goal1.rawValue) private var goal1 = ""
+    @AppStorage(AppSettings.Key.goal2.rawValue) private var goal2 = ""
+    @AppStorage(AppSettings.Key.goal3.rawValue) private var goal3 = ""
 
     @State private var launchAtLogin = false
-    @State private var skipWeekdays: [Int] = UserDefaults.standard.array(forKey: "skipWeekdays") as? [Int] ?? []
+    @State private var skipWeekdays: [Int] = AppSettings().skipWeekdays
     @State private var previewController: CheckpointWindowController?
 
     private let intervalOptions = [1, 2, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120]
@@ -43,7 +43,7 @@ struct GeneralSettingsView: View {
                 }
                 Picker("Randomness", selection: $randomness) {
                     ForEach(Randomness.allCases) { level in
-                        Text(level.label(for: TimeInterval(intervalSeconds))).tag(level.rawValue)
+                        Text(level.label(for: TimeInterval(intervalSeconds))).tag(level)
                     }
                 }
                 Text("Check-ins come at unpredictable times around the interval, so you can't brace for them. The range adjusts with the interval.")
@@ -88,7 +88,7 @@ struct GeneralSettingsView: View {
                             get: { !skipWeekdays.contains(weekday) },
                             set: { on in
                                 skipWeekdays = Weekdays.setSkipped(weekday, skipped: !on, in: skipWeekdays)
-                                UserDefaults.standard.set(skipWeekdays, forKey: "skipWeekdays")
+                                AppSettings().skipWeekdays = skipWeekdays
                             }
                         ))
                         .toggleStyle(.button)
@@ -138,8 +138,8 @@ struct GeneralSettingsView: View {
 
             Section("Menu Bar") {
                 Picker("Show", selection: $menuBarDisplay) {
-                    Text("Time on current objective").tag("objectiveTime")
-                    Text("Countdown to next check-in").tag("countdown")
+                    Text("Time on current objective").tag(AppSettings.MenuBarDisplay.objectiveTime)
+                    Text("Countdown to next check-in").tag(AppSettings.MenuBarDisplay.countdown)
                 }
                 Text("Time on your objective keeps time visible. A countdown lets you anticipate check-ins, which makes them less effective.")
                     .font(.caption)

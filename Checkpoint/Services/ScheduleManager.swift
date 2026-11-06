@@ -6,8 +6,14 @@ private let log = Logger(subsystem: "com.rkrev.checkpoint", category: "ScheduleM
 @MainActor
 final class ScheduleManager {
 
+    private let settings: AppSettings
+
+    init(settings: AppSettings = AppSettings()) {
+        self.settings = settings
+    }
+
     func shouldFire(at date: Date = Date()) -> Bool {
-        let enabled = UserDefaults.standard.bool(forKey: "checkpointsEnabled")
+        let enabled = settings.checkInsEnabled
         guard enabled else {
             log.notice("shouldFire=false: checkpointsEnabled=false")
             return false
@@ -30,14 +36,14 @@ final class ScheduleManager {
 
     func isWithinActiveHours(at date: Date = Date()) -> Bool {
         // If active hours toggle is off, always return true
-        guard UserDefaults.standard.bool(forKey: "useActiveHours") else {
+        guard settings.useActiveHours else {
             log.notice("isWithinActiveHours: useActiveHours=false, always active")
             return true
         }
 
         let hour = Calendar.current.component(.hour, from: date)
-        let start = UserDefaults.standard.integer(forKey: "activeHoursStart")
-        let end = UserDefaults.standard.integer(forKey: "activeHoursEnd")
+        let start = settings.activeHoursStart
+        let end = settings.activeHoursEnd
         let result: Bool
         if start == end {
             result = true // same = all day
@@ -58,7 +64,7 @@ final class ScheduleManager {
 
     private func isSkippedWeekday(at date: Date = Date()) -> Bool {
         let weekday = Calendar.current.component(.weekday, from: date)
-        let skipped = UserDefaults.standard.array(forKey: "skipWeekdays") as? [Int] ?? []
+        let skipped = settings.skipWeekdays
         return skipped.contains(weekday)
     }
 }

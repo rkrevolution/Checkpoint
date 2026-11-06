@@ -10,7 +10,10 @@ final class QuestionBank {
 
     var allBundledQuestions: [Question] { bundledQuestions }
 
-    init() {
+    private let settings: AppSettings
+
+    init(settings: AppSettings = AppSettings()) {
+        self.settings = settings
         loadBundled()
     }
 
@@ -61,7 +64,7 @@ final class QuestionBank {
     // MARK: - Private
 
     private func enabledQuestions() -> [Question] {
-        let disabled = Set(UserDefaults.standard.stringArray(forKey: "disabledQuestionIDs") ?? [])
+        let disabled = settings.disabledQuestionIDs
         var questions = bundledQuestions.filter { !disabled.contains($0.id) }
 
         // Merge custom questions

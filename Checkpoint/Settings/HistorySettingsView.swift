@@ -8,7 +8,7 @@ struct HistorySettingsView: View {
     @State private var showingClearConfirmation = false
     @State private var errorMessage: String?
 
-    @AppStorage("logResponses") private var logResponses = true
+    @AppStorage(AppSettings.Key.logResponses.rawValue) private var logResponses = AppSettings.Default.logResponses
 
     private let responseLog = ResponseLog()
     private let dateFormatter: DateFormatter = {

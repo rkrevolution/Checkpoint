@@ -48,8 +48,7 @@ final class WelcomeWindowController: NSWindowController {
 
     @objc private func windowWillClose(_ notification: Notification) {
         // Start with default interval if user closes without clicking "Start"
-        let defaultInterval = UserDefaults.standard.integer(forKey: "checkpointInterval")
-        onComplete?(defaultInterval > 0 ? defaultInterval : 2700)
+        onComplete?(Int(AppSettings().checkInInterval))
         onComplete = nil  // prevent double-fire
     }
 }

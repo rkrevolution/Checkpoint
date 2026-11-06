@@ -101,7 +101,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private func idleTitle(_ app: AppDelegate) -> String {
-        let showCountdown = UserDefaults.standard.string(forKey: "menuBarDisplay") == "countdown"
+        let showCountdown = AppSettings().menuBarDisplay == .countdown
         if !showCountdown, let active = app.objectiveTracker.activeSeconds() {
             return DurationText.short(active)
         }
@@ -131,7 +131,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
-        let goals = Goals.current()
+        let goals = AppSettings().goals
         if !goals.isEmpty {
             menu.addItem(disabled("Goals"))
             for goal in goals {
@@ -160,7 +160,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let objectiveTitle = app.objectiveTracker.current == nil ? "Set Objective\u{2026}" : "Change Objective\u{2026}"
         menu.addItem(action(objectiveTitle, #selector(AppDelegate.updateObjectiveFromMenu), app))
         let showFocus = action("Show Focus", #selector(AppDelegate.toggleFocusPill), app)
-        showFocus.state = UserDefaults.standard.bool(forKey: "showFocusPill") ? .on : .off
+        showFocus.state = AppSettings().showFocusPill ? .on : .off
         showFocus.toolTip = "A small strip at the top of the screen with your objective and time on it"
         menu.addItem(showFocus)
         let park = action("Park a Thought\u{2026}", #selector(AppDelegate.parkThoughtFromMenu), app)
