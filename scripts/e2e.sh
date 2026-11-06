@@ -90,7 +90,7 @@ launch() {  # launch <interval seconds>
     "$BIN" -checkpointInterval "$1" -randomness off -hasLaunchedBefore YES \
         -playSoundOnCheckpoint NO -logResponses NO -fullScreenCheckpoint YES \
         -snoozeMinutes 1 -maxSnoozesPerCheckpoint 3 -respectFocusMode YES \
-        -useActiveHours NO -checkpointsEnabled YES -e2eDataDir "$WORK/data" >/dev/null 2>&1 &
+        -useActiveHours NO -checkpointsEnabled YES -holdDuringCalls YES -e2eDataDir "$WORK/data" >/dev/null 2>&1 &
     APP_PID=$!
     expect "app launches and starts its timer" "TIMER STARTING" 15
 }
