@@ -12,11 +12,11 @@ final class CheckpointTimer {
 
     private var timer: DispatchSourceTimer?
     private var _nextFireDate: Date?
-    private let defaults: UserDefaults
+    private let settings: AppSettings
 
-    /// - Parameter defaults: where the randomness setting is read (a throwaway suite in tests)
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
+    /// - Parameter settings: where the randomness setting is read (a throwaway suite in tests)
+    init(settings: AppSettings = AppSettings()) {
+        self.settings = settings
     }
 
     var nextFireDate: Date? {
@@ -35,7 +35,7 @@ final class CheckpointTimer {
     private func scheduleNext(baseInterval: TimeInterval, delay: Int? = nil) {
         timer?.cancel()
 
-        let jitterRange = Randomness.current(defaults).seconds(for: baseInterval)
+        let jitterRange = settings.randomness.seconds(for: baseInterval)
         let jitter = jitterRange > 0 ? Int.random(in: -jitterRange...jitterRange) : 0
         let actual = delay ?? max(60, Int(baseInterval) + jitter) // never less than 1 min
 

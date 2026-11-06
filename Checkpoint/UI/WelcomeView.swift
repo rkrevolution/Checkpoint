@@ -3,7 +3,7 @@ import SwiftUI
 struct WelcomeView: View {
     var onGetStarted: (Int) -> Void  // passes selected interval in seconds
 
-    @State private var selectedInterval = 2700  // 45 min default
+    @State private var selectedInterval = AppSettings.Default.checkInInterval
 
     private let intervalOptions: [(label: String, seconds: Int)] = [
         ("15 min", 900),
@@ -88,7 +88,7 @@ struct WelcomeView: View {
                 Spacer()
 
                 Button {
-                    UserDefaults.standard.set(selectedInterval, forKey: "checkpointInterval")
+                    AppSettings().checkInInterval = TimeInterval(selectedInterval)
                     onGetStarted(selectedInterval)
                 } label: {
                     Text("Start Checkpoints")

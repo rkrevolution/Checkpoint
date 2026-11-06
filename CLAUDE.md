@@ -54,12 +54,12 @@ Every change follows these; reviews check them.
 
 ## Planned restructure
 
-`AppDelegate.swift` (~1,160 lines) and the raw `UserDefaults` keys are due to be restructured, behaviour-neutral, in the **Code cleanup** milestone: plan [#68](https://github.com/rkrevolution/Checkpoint/issues/68), in order **#16** typed `Settings` → **#17** one `CheckInGate` for "can a check-in show now?" → **#18** split into `CheckInScheduler`, `PresenceMonitor`, `WindowRouter` and `Diagnostics`. Each issue has a detailed plan and acceptance criteria.
+`AppDelegate.swift` (~1,150 lines) is due to be restructured, behaviour-neutral, in the **Code cleanup** milestone: plan [#68](https://github.com/rkrevolution/Checkpoint/issues/68), in order **#16** typed settings (`AppSettings`, done) → **#17** one `CheckInGate` for "can a check-in show now?" → **#18** split into `CheckInScheduler`, `PresenceMonitor`, `WindowRouter` and `Diagnostics`. Each issue has a detailed plan and acceptance criteria.
 
 Until then:
 - **Don't grow `AppDelegate`.** Put new logic in its own type (with tests) and only wire it up in `AppDelegate`.
 - **Don't add new "not now" checks** in individual paths; note them on #17 so the gate covers them.
-- New settings: add the key and default in one place and note it on #16.
+- New settings: add the key, default and typed property to `AppSettings` only.
 
 ## Rules
 
@@ -75,12 +75,12 @@ Until then:
 - Every path that presents a checkpoint must re-check the away state, schedule and Focus gates, except an explicit manual check-in.
 - Debug-only code goes inside `#if DEBUG`; Release builds must not contain it.
 - The project builds in Swift 5 mode with default `MainActor` isolation. Wrap main-queue notification callbacks in `MainActor.assumeIsolated`, and mark pure helpers `nonisolated` when tests call them synchronously.
-- Settings are read from `UserDefaults.standard` by key; keep defaults in `AppDelegate`'s `register(defaults:)` in sync with any `@AppStorage` default (#16 replaces this with a typed settings type).
+- Preferences go through `AppSettings` (`Checkpoint/Model/AppSettings.swift`): one key, type and default each, no raw string keys elsewhere. Views bind with `@AppStorage(AppSettings.Key.x.rawValue) var x = AppSettings.Default.x`. Never change a key's raw value (it's the stored name). Current work (`currentObjective`, `currentIfThenPlan`) and internal state are not preferences; they belong to their owning type (#68).
 
 **Tests**
 - Swift Testing (`@Test`, `#expect`) in `CheckpointTests/CheckpointTests.swift`.
 - Add a test for each bug fix or rule where the logic is testable without UI.
-- Known issue: some tests write to the real `UserDefaults.standard` domain (#16 fixes this). Don't add new tests that do.
+- Tests never touch `UserDefaults.standard`: use `isolatedSettings()` or a `UserDefaults(suiteName:)` suite.
 - The test host runs as the real app (same bundle ID and preferences). Don't render or instantiate Settings views in tests: their `@AppStorage` reads and writes the user's real settings (this once reset a user's interval to 1 minute).
 
 ## Workflow

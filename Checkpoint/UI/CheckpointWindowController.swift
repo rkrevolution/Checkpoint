@@ -78,7 +78,7 @@ final class CheckpointWindowController: NSWindowController {
     func showWithFade() {
         guard let window else { return }
 
-        let fullScreen = UserDefaults.standard.bool(forKey: "fullScreenCheckpoint")
+        let fullScreen = AppSettings().fullScreenCheckIn
         if fullScreen {
             showOverlays()
         }

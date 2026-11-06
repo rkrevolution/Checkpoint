@@ -91,7 +91,7 @@ struct TodayView: View {
 
     @ViewBuilder
     private var goalsSection: some View {
-        let goals = Goals.current()
+        let goals = AppSettings().goals
         if !goals.isEmpty {
             section("Goals") {
                 ForEach(Array(goals.enumerated()), id: \.offset) { _, goal in

@@ -6,7 +6,6 @@ import Foundation
 enum Randomness: String, CaseIterable, Identifiable {
     case off, low, medium, high
 
-    static let key = "randomness"
     /// The old ±seconds setting, converted once on launch (see `migrate`).
     static let legacyKey = "jitterRange"
 
@@ -45,22 +44,18 @@ enum Randomness: String, CaseIterable, Identifiable {
         return "\(title) (\(range))"
     }
 
-    nonisolated static func current(_ defaults: UserDefaults = .standard) -> Randomness {
-        Randomness(rawValue: defaults.string(forKey: key) ?? "") ?? .medium
-    }
-
     /// The level closest to a given share of the interval.
     nonisolated static func nearest(toFraction fraction: Double) -> Randomness {
         allCases.min { abs($0.fraction - fraction) < abs($1.fraction - fraction) }!
     }
 
     /// One-time conversion from the old "±seconds" jitter setting, keeping its real effect
-    /// (it was capped at a quarter of the interval). Call before registering defaults.
+    /// (it was capped at a quarter of the interval). Call once at launch.
     nonisolated static func migrate(_ defaults: UserDefaults = .standard) {
-        guard defaults.object(forKey: key) == nil,
+        let settings = AppSettings(defaults)
+        guard defaults.object(forKey: AppSettings.Key.randomness.rawValue) == nil,
               let legacy = defaults.object(forKey: legacyKey) as? Int else { return }
-        let interval = Double(defaults.integer(forKey: "checkpointInterval"))
-        let effective = interval > 0 ? min(Double(legacy), interval / 4) / interval : 0.15
-        defaults.set(nearest(toFraction: effective).rawValue, forKey: key)
+        let interval = settings.checkInInterval
+        settings.randomness = nearest(toFraction: min(Double(legacy), interval / 4) / interval)
     }
 }

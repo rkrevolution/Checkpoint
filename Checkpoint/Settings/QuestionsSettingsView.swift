@@ -11,17 +11,16 @@ struct QuestionsSettingsView: View {
     @State private var newQuestionCategoryId = ""
 
     private var disabledQuestionIDs: Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: "disabledQuestionIDs") ?? [])
+        AppSettings().disabledQuestionIDs
     }
 
     private func toggleQuestion(_ id: String, enabled: Bool) {
-        var ids = UserDefaults.standard.stringArray(forKey: "disabledQuestionIDs") ?? []
+        let settings = AppSettings()
         if enabled {
-            ids.removeAll { $0 == id }
+            settings.disabledQuestionIDs.remove(id)
         } else {
-            ids.append(id)
+            settings.disabledQuestionIDs.insert(id)
         }
-        UserDefaults.standard.set(ids, forKey: "disabledQuestionIDs")
     }
 
     // All categories: built-in + custom

@@ -2,17 +2,17 @@ import AppKit
 import SwiftUI
 
 struct NotificationsSettingsView: View {
-    @AppStorage("playSoundOnCheckpoint") private var playSound = true
-    @AppStorage("soundName") private var soundName = "Glass"
-    @AppStorage("snoozeMinutes") private var snoozeMinutes = 5
-    @AppStorage("maxSnoozesPerCheckpoint") private var maxSnoozes = 2
-    @AppStorage("afterMaxSnoozeAction") private var afterMaxSnooze = "autoDismiss"
-    @AppStorage("respectFocusMode") private var respectFocusMode = true
-    @AppStorage("holdDuringCalls") private var holdDuringCalls = true
-    @AppStorage(ScreenCapturePrivacy.key) private var hideFromScreenCapture = ScreenCapturePrivacy.defaultValue
+    @AppStorage(AppSettings.Key.playSound.rawValue) private var playSound = AppSettings.Default.playSound
+    @AppStorage(AppSettings.Key.soundName.rawValue) private var soundName = AppSettings.Default.soundName
+    @AppStorage(AppSettings.Key.snoozeMinutes.rawValue) private var snoozeMinutes = AppSettings.Default.snoozeMinutes
+    @AppStorage(AppSettings.Key.maxSnoozes.rawValue) private var maxSnoozes = AppSettings.Default.maxSnoozes
+    @AppStorage(AppSettings.Key.afterMaxSnooze.rawValue) private var afterMaxSnooze = AppSettings.Default.afterMaxSnooze
+    @AppStorage(AppSettings.Key.respectFocus.rawValue) private var respectFocusMode = AppSettings.Default.respectFocus
+    @AppStorage(AppSettings.Key.holdDuringCalls.rawValue) private var holdDuringCalls = AppSettings.Default.holdDuringCalls
+    @AppStorage(AppSettings.Key.hideFromScreenCapture.rawValue) private var hideFromScreenCapture = AppSettings.Default.hideFromScreenCapture
 
-    @AppStorage("showBreathingCue") private var showBreathingCue = false
-    @AppStorage("fullScreenCheckpoint") private var fullScreenCheckpoint = false
+    @AppStorage(AppSettings.Key.showBreathingCue.rawValue) private var showBreathingCue = AppSettings.Default.showBreathingCue
+    @AppStorage(AppSettings.Key.fullScreenCheckIn.rawValue) private var fullScreenCheckpoint = AppSettings.Default.fullScreenCheckIn
 
     private let systemSounds = ["Glass", "Ping", "Pop", "Purr", "Sosumi", "Tink"]
 
@@ -54,8 +54,8 @@ struct NotificationsSettingsView: View {
 
                 if maxSnoozes > 0 {
                     Picker("After max snoozes", selection: $afterMaxSnooze) {
-                        Text("Auto-dismiss").tag("autoDismiss")
-                        Text("Force open modal").tag("forceModal")
+                        Text("Auto-dismiss").tag(AppSettings.AfterMaxSnooze.autoDismiss)
+                        Text("Force open modal").tag(AppSettings.AfterMaxSnooze.forceModal)
                     }
                 }
             }

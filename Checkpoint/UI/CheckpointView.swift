@@ -26,8 +26,8 @@ struct CheckpointView: View {
     @State private var breathScale: CGFloat = 1.0
     @FocusState private var fieldFocused: Bool
 
-    @AppStorage("showBreathingCue") private var showBreathingCue = false
-    private let goals = Goals.current()
+    @AppStorage(AppSettings.Key.showBreathingCue.rawValue) private var showBreathingCue = AppSettings.Default.showBreathingCue
+    private let goals = AppSettings().goals
     private let visibleToScreenCapture = !ScreenCapturePrivacy.isHidden()
     /// Side inset shared by the goals box and the divider under it, so their edges line up
     private let sectionInset: CGFloat = 24
@@ -307,7 +307,7 @@ struct CheckpointView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             } else {
-                let snoozeMin = max(1, UserDefaults.standard.integer(forKey: "snoozeMinutes"))
+                let snoozeMin = AppSettings().snoozeMinutes
                 Button {
                     onSnooze?()
                 } label: {

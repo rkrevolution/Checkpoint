@@ -6,11 +6,8 @@ import AppKit
 /// private on calls), off when you need a screenshot.
 /// Override for one run: `scripts/run.sh -hideFromScreenCapture NO`.
 enum ScreenCapturePrivacy {
-    nonisolated static let key = "hideFromScreenCapture"
-    nonisolated static let defaultValue = true
-
     nonisolated static func isHidden(_ defaults: UserDefaults = .standard) -> Bool {
-        defaults.object(forKey: key) == nil ? defaultValue : defaults.bool(forKey: key)
+        AppSettings(defaults).hideFromScreenCapture
     }
 
     nonisolated static func sharingType(hidden: Bool) -> NSWindow.SharingType {

@@ -9,6 +9,7 @@ private let log = Logger(subsystem: "com.rkrev.checkpoint", category: "AppDelega
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Owned Objects
+    private let settings = AppSettings()
     let appState = AppState()
     let scheduleManager = ScheduleManager()
     let questionBank = QuestionBank()
@@ -93,34 +94,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let loginStatus = SMAppService.mainApp.status
         log.notice("applicationDidFinishLaunching — loginItem=\(loginStatus.rawValue == 1 ? "enabled" : "not enabled") (status=\(loginStatus.rawValue))")
 
-        // Convert the old ±seconds jitter setting before defaults are registered
+        // Convert the old ±seconds jitter setting. Defaults aren't registered: each setting's
+        // default lives in AppSettings (#16).
         Randomness.migrate()
-
-        // Register all UserDefaults
-        UserDefaults.standard.register(defaults: [
-            "checkpointInterval": 2700,
-            "activeHoursStart": 8,
-            "activeHoursEnd": 18,
-            "checkpointsEnabled": true,
-            "useActiveHours": false,
-            "questionsPerCheckpoint": 1,
-            "snoozeMinutes": 5,
-            "maxSnoozesPerCheckpoint": 2,
-            "afterMaxSnoozeAction": "autoDismiss",
-            Randomness.key: Randomness.medium.rawValue,
-            "playSoundOnCheckpoint": true,
-            "soundName": "Glass",
-            "respectFocusMode": true,
-            "logResponses": true,
-            "skipWeekdays": [Int](),
-            "disabledQuestionIDs": [String](),
-            "showBreathingCue": false,
-            "fullScreenCheckpoint": false,
-            "holdDuringCalls": true,
-            "showFocusPill": false,
-            "menuBarDisplay": "objectiveTime",
-            ScreenCapturePrivacy.key: ScreenCapturePrivacy.defaultValue,
-        ])
 
         // Time on the current objective (#24): continue today's session, if any, then keep it in sync.
         // No session today means the objective prompt appears below.
@@ -263,26 +239,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         oc.show()
     }
 
-    /// The check-in interval setting, or the default if it's unset.
-    private var checkInInterval: TimeInterval {
-        let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
-        return interval > 0 ? interval : 2700
-    }
-
     /// A check-in just ended (answered or dropped). The next one is a full interval from now,
     /// so time spent snoozed, held for a call or with the card open doesn't shorten the gap (#52).
     private func startNextInterval(after reason: String) {
         log.notice("Check-in ended (\(reason, privacy: .public)): next interval starts now")
-        checkpointTimer?.restart(interval: checkInInterval)
+        checkpointTimer?.restart(interval: settings.checkInInterval)
     }
 
     private func startTimer() {
-        let effectiveInterval = checkInInterval
+        let effectiveInterval = settings.checkInInterval
         log.notice("━━━ TIMER STARTING ━━━")
         log.notice("  Base interval: \(Int(effectiveInterval))s (\(Int(effectiveInterval)/60)min)")
-        log.notice("  Randomness: \(Randomness.current().label(for: effectiveInterval), privacy: .public)")
-        log.notice("  Active hours: \(UserDefaults.standard.bool(forKey: "useActiveHours") ? "on" : "off (always active)")")
-        let timer = CheckpointTimer()
+        log.notice("  Randomness: \(self.settings.randomness.label(for: effectiveInterval), privacy: .public)")
+        log.notice("  Active hours: \(self.settings.useActiveHours ? "on" : "off (always active)")")
+        let timer = CheckpointTimer(settings: settings)
         timer.onFire = { [weak self] in self?.handleTimerFire() }
         // Remember when the next check-in is due, so a relaunch keeps the schedule
         timer.onSchedule = { due in AppDelegate.dataDefaults.set(due, forKey: AppDelegate.nextCheckInDueKey) }
@@ -382,9 +352,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Restart fresh
         appState.transition(to: .idle)
-        checkpointTimer?.restart(interval: checkInInterval)
+        checkpointTimer?.restart(interval: settings.checkInInterval)
         elapsedSince = Date()
-        log.notice("  Timer restarted with interval \(Int(self.checkInInterval))s")
+        log.notice("  Timer restarted with interval \(Int(self.settings.checkInInterval))s")
     }
 
     // MARK: - Timer Fire
@@ -436,7 +406,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let withinHours = scheduleManager.isWithinActiveHours()
         let shouldFire = scheduleManager.shouldFire()
         let focusActive = focusObserver.isFocusActive
-        let respectFocus = UserDefaults.standard.bool(forKey: "respectFocusMode")
+        let respectFocus = settings.respectFocus
         log.notice("Gate checks: withinHours=\(withinHours), shouldFire=\(shouldFire), focusActive=\(focusActive), respectFocus=\(respectFocus)")
 
         // Check schedule (active hours, weekday skips, blackout, DND)
@@ -475,9 +445,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         log.notice("  Time: \(formatter.string(from: Date()))")
         appState.transition(to: .triggered)
 
-        let count = UserDefaults.standard.integer(forKey: "questionsPerCheckpoint")
         let questions = questionBank.selectQuestions(
-            count: count > 0 ? count : 1,
+            count: settings.questionsPerCheckIn,
             recentCategoryIds: appState.recentCategoryIds
         )
 
@@ -499,9 +468,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
         // Play sound if enabled
-        if playSound, UserDefaults.standard.bool(forKey: "playSoundOnCheckpoint") {
-            let soundName = UserDefaults.standard.string(forKey: "soundName") ?? "Glass"
-            NSSound(named: NSSound.Name(soundName))?.play()
+        if playSound, settings.playSound {
+            NSSound(named: NSSound.Name(settings.soundName))?.play()
         }
 
         log.notice("Presenting checkpoint: \(questions.count) questions")
@@ -519,7 +487,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show the current time and real elapsed time, also when re-presenting after a snooze
         let now = Date()
-        let elapsed = elapsedSince.map { Int(now.timeIntervalSince($0)) } ?? Int(checkInInterval)
+        let elapsed = elapsedSince.map { Int(now.timeIntervalSince($0)) } ?? Int(settings.checkInInterval)
         let session = CheckpointSession(
             id: original.id,
             timestamp: now,
@@ -531,15 +499,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Only show an objective that's being timed; otherwise the card asks what you're on (#75)
         let objective = objectiveTracker.current?.objective ?? ""
-        let maxSnoozes = UserDefaults.standard.integer(forKey: "maxSnoozesPerCheckpoint")
-
         let wc = CheckpointWindowController(
             session: session,
             currentObjective: objective,
             checkpointNumber: todayCheckpointCount,
             objectiveSession: objectiveTracker.current,
             recentObjectives: objectiveTracker.recentObjectives(limit: 10),
-            allowSnooze: maxSnoozes == 0 || snoozeCount < maxSnoozes,
+            allowSnooze: settings.allowsSnooze(after: snoozeCount),
             onDone: { [weak self] completed, updatedObjective in
                 let formatter = DateFormatter()
                 formatter.timeStyle = .medium
@@ -559,7 +525,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if let thought = completed.parkedThought {
                     self?.parkedThoughts.park(thought, objective: self?.objectiveTracker.current?.objective)
                 }
-                if UserDefaults.standard.bool(forKey: "logResponses") {
+                if self?.settings.logResponses == true {
                     try? self?.responseLog.append(completed)
                 }
                 self?.appState.transition(to: .idle)
@@ -590,13 +556,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Snooze
 
     private func handleSnooze(session: CheckpointSession, snoozeCount: Int) {
-        let snoozeMin = UserDefaults.standard.integer(forKey: "snoozeMinutes")
-        log.notice("  Snooze #\(snoozeCount + 1), will re-present in \(snoozeMin > 0 ? snoozeMin : 5)min")
-        let maxSnoozes = UserDefaults.standard.integer(forKey: "maxSnoozesPerCheckpoint")
+        log.notice("  Snooze #\(snoozeCount + 1), will re-present in \(self.settings.snoozeMinutes)min")
         let newCount = snoozeCount + 1
 
         // Log the snooze
-        if UserDefaults.standard.bool(forKey: "logResponses") {
+        if settings.logResponses {
             // Log each snooze as its own entry so History never sees duplicate IDs
             let snoozed = CheckpointSession(
                 id: UUID(),
@@ -611,15 +575,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Max snoozes reached: either drop this checkpoint, or ("forceModal") fall through
         // and re-present after the snooze without a "Not now" option.
-        if maxSnoozes > 0, newCount >= maxSnoozes,
-           (UserDefaults.standard.string(forKey: "afterMaxSnoozeAction") ?? "autoDismiss") == "autoDismiss" {
+        if !settings.allowsSnooze(after: newCount), settings.afterMaxSnooze == .autoDismiss {
             appState.transition(to: .idle)
             startNextInterval(after: "snooze limit reached")
             return
         }
 
-        let snoozeMinutes = UserDefaults.standard.integer(forKey: "snoozeMinutes")
-        let snoozeSecs = snoozeMinutes > 0 ? snoozeMinutes * 60 : 300
+        let snoozeSecs = settings.snoozeMinutes * 60
         let until = Date().addingTimeInterval(TimeInterval(snoozeSecs))
         appState.transition(to: .snoozed(until: until, count: newCount))
 
@@ -631,7 +593,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             self.snoozeTimer = nil
             guard case .snoozed = self.appState.state else { return }
-            let focusBlocks = UserDefaults.standard.bool(forKey: "respectFocusMode") && self.focusObserver.isFocusActive
+            let focusBlocks = settings.respectFocus && self.focusObserver.isFocusActive
             guard self.scheduleManager.shouldFire(), !focusBlocks else {
                 log.notice("Snoozed checkpoint dropped: schedule or Focus no longer allows it")
                 self.appState.transition(to: .idle)
@@ -785,7 +747,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func diagnostics() -> [(label: String, value: String)] {
-        let respectFocus = UserDefaults.standard.bool(forKey: "respectFocusMode")
+        let respectFocus = settings.respectFocus
         let login: String
         switch SMAppService.mainApp.status {
         case .enabled: login = "on"
@@ -806,8 +768,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ("Start at Login", login),
             ("Screen capture", "Check-ins " + ScreenCapturePrivacy.statusText()),
             ("Interval", {
-                let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
-                return "every \(DurationText.long(interval)), randomness \(Randomness.current().label(for: interval))"
+                let interval = settings.checkInInterval
+                return "every \(DurationText.long(interval)), randomness \(settings.randomness.label(for: interval))"
             }()),
             ("Version", AppInfo.displayString),
             ("Data folder", JSONLinesFile<ParkedThought>.appSupportURL("").path),
@@ -819,7 +781,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Shows or hides the always-visible focus strip to match the setting and current state.
     private func updateFocusPill() {
         focusPill.setVisible(FocusPillPolicy.shouldShow(
-            enabled: UserDefaults.standard.bool(forKey: "showFocusPill"),
+            enabled: settings.showFocusPill,
             hasObjective: objectiveTracker.current != nil,
             isPaused: appState.state == .paused,
             isAway: !awayReasons.isEmpty
@@ -836,14 +798,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func toggleFocusPill() {
-        let defaults = UserDefaults.standard
-        defaults.set(!defaults.bool(forKey: "showFocusPill"), forKey: "showFocusPill")
+        settings.showFocusPill.toggle()
     }
 
     // MARK: - Calls (#1)
 
     private var holdsForCall: Bool {
-        callDetector.isInCall && UserDefaults.standard.bool(forKey: "holdDuringCalls")
+        callDetector.isInCall && settings.holdDuringCalls
     }
 
     private func callChanged(inCall: Bool) {
@@ -923,7 +884,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if checkpointTimer == nil {
             startTimer()
         } else {
-            checkpointTimer?.restart(interval: checkInInterval)
+            checkpointTimer?.restart(interval: settings.checkInInterval)
             elapsedSince = Date()
         }
         statusItemController?.updateDisplay()
@@ -1036,7 +997,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Re-prompt for objective on resume, then restart timer
         presentObjectivePrompt(greeting: "Welcome back") { [weak self] in
             guard let self else { return }
-            self.checkpointTimer?.restart(interval: self.checkInInterval)
+            self.checkpointTimer?.restart(interval: self.settings.checkInInterval)
             self.elapsedSince = Date()
             self.objectiveTracker.endAway()  // the clock starts again
             self.appState.transition(to: .idle)
@@ -1173,6 +1134,8 @@ extension AppDelegate {
 
 // MARK: - UserDefaults KVO Extension
 
+/// Observable through Combine (`publisher(for:)`). KVO on `UserDefaults` only works when the
+/// property name is the stored key, so each name must match its `AppSettings.Key` raw value.
 extension UserDefaults {
     @objc dynamic var currentObjective: String? {
         return string(forKey: "currentObjective")
@@ -1183,10 +1146,10 @@ extension UserDefaults {
     }
 
     @objc dynamic var showFocusPill: Bool {
-        return bool(forKey: "showFocusPill")
+        return AppSettings(self).showFocusPill
     }
 
     @objc dynamic var checkpointInterval: Int {
-        return integer(forKey: "checkpointInterval")
+        return integer(forKey: AppSettings.Key.checkInInterval.rawValue)
     }
 }

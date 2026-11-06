@@ -69,7 +69,7 @@ final class FocusPillController {
 
         let view = FocusPillView(
             onChange: { [weak self] in self?.onChangeObjective() },
-            onClose: { UserDefaults.standard.set(false, forKey: "showFocusPill") }
+            onClose: { AppSettings().showFocusPill = false }
         )
         .environmentObject(tracker)
         panel.contentView = NSHostingView(rootView: view)
