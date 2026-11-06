@@ -11,7 +11,7 @@ enum FocusPillPolicy {
 
 /// A small floating strip showing the current objective and time on it, in the same style as
 /// the objective-switch toast. Keeps the goal in view (working memory) without taking focus.
-/// Draggable, remembers its position, hidden from screen sharing; ✕ turns it off.
+/// Draggable, remembers its position, hidden from screen sharing (see `ScreenCapturePrivacy`); ✕ turns it off.
 @MainActor
 final class FocusPillController {
 
@@ -19,10 +19,22 @@ final class FocusPillController {
     private let tracker: ObjectiveTracker
     private let onChangeObjective: () -> Void
     private static let size = NSSize(width: 340, height: 54)
+    private var captureSetting: AnyCancellable?
 
     init(tracker: ObjectiveTracker, onChangeObjective: @escaping () -> Void) {
         self.tracker = tracker
         self.onChangeObjective = onChangeObjective
+        // The strip stays open for hours, so follow the screen-capture setting while it's up
+        captureSetting = NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .map { _ in ScreenCapturePrivacy.isHidden() }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let panel = self?.panel else { return }
+                    ScreenCapturePrivacy.apply(to: panel)
+                }
+            }
     }
 
     func setVisible(_ visible: Bool) {
@@ -53,7 +65,7 @@ final class FocusPillController {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary]
-        panel.sharingType = .none  // never in screen shares or recordings
+        ScreenCapturePrivacy.apply(to: panel)
 
         let view = FocusPillView(
             onChange: { [weak self] in self?.onChangeObjective() },

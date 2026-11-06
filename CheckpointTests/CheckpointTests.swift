@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import AppKit
 @testable import Checkpoint
 
 // MARK: - ScheduleManager Tests
@@ -805,6 +806,25 @@ struct GoalsTests {
         defaults.set("   ", forKey: "goal2")
         defaults.set("Run 3× a week", forKey: "goal3")
         #expect(Goals.current(defaults) == ["Ship 1.0", "Run 3× a week"])
+    }
+}
+
+// MARK: - Screen capture privacy
+
+struct ScreenCapturePrivacyTests {
+    @Test func hiddenByDefault() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        #expect(ScreenCapturePrivacy.isHidden(defaults))
+        #expect(ScreenCapturePrivacy.statusText(defaults).hasPrefix("hidden"))
+    }
+
+    @Test func turningItOffMakesWindowsCapturable() {
+        let defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        defaults.set(false, forKey: ScreenCapturePrivacy.key)
+        #expect(!ScreenCapturePrivacy.isHidden(defaults))
+        #expect(ScreenCapturePrivacy.statusText(defaults).hasPrefix("visible"))
+        #expect(ScreenCapturePrivacy.sharingType(hidden: false) == .readOnly)
+        #expect(ScreenCapturePrivacy.sharingType(hidden: true) == .none)
     }
 }
 

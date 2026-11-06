@@ -23,7 +23,7 @@ enum HowItWorks {
 
     static let automatic = [
         "Waits during calls and shows the check-in after you hang up",
-        "Pauses while you're away (sleep, lock, screensaver) and hides from screen sharing",
+        "Pauses while you're away (sleep, lock, screensaver) and hides from screen sharing (Settings can allow screenshots)",
         "Press ⌃⌥⌘P in any app to pause or resume",
         "Warns in the menu bar if check-ins ever stop",
     ]

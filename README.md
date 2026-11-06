@@ -24,7 +24,7 @@ It's a time perception prosthetic. Corrective lensing, not discipline.
 3. **Check in.** A card shows the time, your objective and time on it (red once past your estimate), and a question. Answer **On track**, **Drifted** (see your plan, park the distraction) or **Switched** (pick what you're on now).
 4. **Review.** **Today…** in the menu shows your day: time per objective, estimate accuracy, check-in answers, parked thoughts.
 
-Being interruptive is the point. It has to break through hyperfocus to work. It stays out of the way when it should: during calls (held until you hang up), while you're away (sleep, lock, screensaver), and from screen shares (the card is hidden from capture).
+Being interruptive is the point. It has to break through hyperfocus to work. It stays out of the way when it should: during calls (held until you hang up), while you're away (sleep, lock, screensaver), and from screen shares (the card is hidden from capture by default; turn that off in Settings to take screenshots).
 
 ![A checkpoint prompt showing the time, elapsed duration, current objective, and a grounding question](screenshot-checkpoint.png)
 
