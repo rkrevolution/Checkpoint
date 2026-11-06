@@ -326,46 +326,29 @@ Title updates every 1 second. Tooltip shows current objective.
 
 ## 7. Settings (⌘,)
 
-Four tabs in a resizable window (min 520 × 440, default 620 × 560). Uses `NSViewRepresentable` to insert `.resizable` into window style mask.
+A resizable window (min 640 × 440, default 760 × 560) with a **sidebar of pages** (#82), following Apple's HIG for sidebars: at most two levels, short labels, SF Symbols in the accent colour, shown by default, nothing critical at the bottom. It opens on the page viewed last. Every setting has a one-line explanation of what it does and why. Settings are defined once in `AppSettings`; see `docs/panels.md` for why each one exists.
 
-### 7.1 General
+### 7.1 Now
+- Current objective, time on it, if-then plan; Set/Change Objective
+- Goals: up to three lines
 
-- **Enable Checkpoints**: on/off toggle
-- **Interval**: picker with preset options (1, 2, 5, 10, 15, 20, 25, 30, 45 min, 1 hr, 1.5 hr, 2 hr; default 45 min)
-- **Limit to active hours**: toggle (default **off** — checkpoints fire whenever app is open)
-  - When on: start/end hour pickers appear (default 8 AM – 6 PM)
-- **Questions per check-in**: segmented 1/2/3 (default 1)
-- **Preview Checkpoint**: button to see exactly what a checkpoint looks like
+### 7.2 Check-ins
+- **Check-ins**: Enable Checkpoints; interval (1, 2, 5, 10, 15, 20, 25, 30, 45 min, 1 hr, 1.5 hr, 2 hr; default 45 min); randomness (Off / Low ±7% / Medium ±15% / High ±25%; default Medium); questions per check-in (1/2/3, default 1); Preview Checkpoint
+- **Schedule**: limit to active hours (default off; 8 AM – 6 PM when on); days to check in
+- **Interruptions**: sound + picker (Glass, Ping, Pop, Purr, Sosumi, Tink) + Preview; full-screen overlay (default off); breathing cue (default off); snooze length (1 / 5 / 10 / 15 min, default 5); snoozes per check-in (1 / 2 / 3 / Unlimited, default 2); after the last snooze: drop the check-in (default) or show it once more without Not now; wait until calls end (default on); respect Focus (default on)
 
-### 7.2 Notifications
+### 7.3 Display
+- **Menu Bar**: menu bar shows time on objective (default) or a countdown; focus strip (default off)
+- **Privacy**: hide check-ins from screen sharing and screenshots (default on); where data is stored
 
-- **Sound**: on/off toggle + sound picker (Glass, Ping, Pop, Purr, Sosumi, Tink) + Preview button
-- **Interval jitter**: slider 0–15 min (default ±10 min)
-- **Snooze duration**: 1 / 5 / 10 / 15 min (default 5)
-- **Max snoozes**: 1 / 2 / 3 / Unlimited (default 2)
-- **After max snoozes**: auto-dismiss or force open (default auto-dismiss)
-- **Breathing cue**: toggle (default off) — pulsing circle on checkpoint modal
-- **Respect Focus/DND**: on/off (default on)
-- **Suppress during full-screen**: on/off (default on)
-
-### 7.3 Questions
-
-Split panel: category sidebar + question list.
-
-- Category sidebar with question counts
-- Per-question enable/disable toggle
-- Add custom questions (max 200 chars) and categories
-- Delete custom questions/categories (built-in categories cannot be deleted)
-
-### 7.4 History
-
-- Toggle: Log responses (default on)
-- Session list with outcome badges (Completed = green, Snoozed = blue)
-- Filter by outcome: All / Completed / Snoozed
-- Export as JSON or CSV
-- Clear history with confirmation dialog
+### 7.4 Your Data and App
+- **Questions**: category list + question list; per-question enable/disable; add custom questions (max 200 chars) and categories; delete custom ones (built-in categories can't be deleted)
+- **History**: log responses (default on); list with outcomes; filter; export JSON or CSV; clear with confirmation
+- **About**: version, How Checkpoint Works…, Start at Login, Diagnostics (collapsed)
 
 ### 7.5 UserDefaults Keys
+
+The source of truth is `Checkpoint/Model/AppSettings.swift`; this table is a summary.
 
 | Key | Type | Default |
 |---|---|---|

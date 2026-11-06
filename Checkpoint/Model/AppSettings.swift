@@ -39,6 +39,7 @@ nonisolated struct AppSettings {
         case logResponses
         case goal1, goal2, goal3
         case objectivePromptShowMore
+        case settingsPage
     }
 
     /// One default per setting. `@AppStorage` initial values use these too.
@@ -64,6 +65,8 @@ nonisolated struct AppSettings {
         static let menuBarDisplay = MenuBarDisplay.objectiveTime
         static let logResponses = true
         static let objectivePromptShowMore = false
+        /// The Settings page that opens first: the last one viewed (#82).
+        static let settingsPage = SettingsPage.now
     }
 
     /// What happens when "Not now" has been used the maximum number of times.
