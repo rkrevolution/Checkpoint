@@ -113,6 +113,7 @@ echo "Manual check-in"
 check_in
 mark; send acknowledge
 expect "Got it completes the checkpoint" "CHECKPOINT COMPLETED"
+expect "next interval starts when the check-in ends" "Check-in ended (answered): next interval starts now"
 
 echo "Screensaver while a card is open"
 check_in
@@ -139,6 +140,7 @@ mark; send callStop
 expect "card shows after the call" "CHECKPOINT FIRING"
 mark; send acknowledge
 expect "held check-in completes" "CHECKPOINT COMPLETED"
+expect "no second check-in soon after a held one (#52)" "Check-in ended (answered): next interval starts now"
 
 echo "Focus never overrides a manual pause"
 mark; send pause; send focusOn; send focusOff; send checkInNow
@@ -160,6 +162,7 @@ if (( QUICK == 0 )); then
     expect "second snooze is recorded" "CHECKPOINT SNOOZED"
     send focusOn
     expect "snoozed card is dropped" "Snoozed checkpoint dropped" 75
+    expect "next interval starts when it's dropped" "Check-in ended (snoozed check-in dropped)" 5
     send focusOff
 
     quit_app

@@ -54,9 +54,9 @@ flowchart LR
 - **When:** at the check-in interval ± random timing, unless you're away, paused, outside active hours, in Focus (if respected), or on a call (held until the call ends, then shown without sound). Also **Check In Now**.
 - **Shows:**
   1. The time (largest).
-  2. Your objective and "for 1 h 40 min · since 9:40" (red once past your estimate).
+  2. Your objective and "for 1 h 40 min · since 9:40" (red once past your estimate). Only an objective that is being timed is shown; with none (skipped, or a new day), the card asks "What are you working on?" with recent objectives instead.
   3. **Your goals**, if set: in a quiet box under the objective, one per line and in full (never truncated), so you don't have to hold them in your head while you decide whether you're on track.
-  4. One grounding question, answered directly with **On track / Drifted / Switched**.
+  4. One grounding question to think about (time, priorities, body), then **"Still on track?"** answered with **On track / Drifted / Switched**. The answer is always about the objective, so a body or scope question never reads as the thing being answered (#77).
   5. **Not now** (snooze) and a count of today's check-ins. No "next check-in" time: unpredictability is the point.
 - **Branches:**
   - **On track** (Return): back to work.

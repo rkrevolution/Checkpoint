@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The checkpoint card. Hierarchy, top to bottom:
 /// 1. the real time (largest), 2. what you're on and for how long, then your goals in full (if set),
-/// 3. one grounding question, 4. a one-tap answer: On track / Drifted / Switched (#12). Drifted shows the if-then plan and
+/// 3. one grounding question to think about, 4. a one-tap answer to "Still on track?": On track / Drifted / Switched
+/// (#12). The answer is always about the objective, whatever the question (#77). Drifted shows the if-then plan and
 /// a field to park the distraction (#34); Switched picks a recent objective or a new one.
 struct CheckpointView: View {
     let session: CheckpointSession
@@ -169,11 +170,6 @@ struct CheckpointView: View {
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if session.questionsShown.isEmpty {
-                Text("Are you still on track?")
-                    .font(.system(size: 15, weight: .medium))
-            }
-
             if showBreathingCue {
                 Circle()
                     .fill(.orange.opacity(0.12))
@@ -184,6 +180,11 @@ struct CheckpointView: View {
             }
 
             VStack(spacing: 6) {
+                // What the buttons answer: the question above is for reflection and may be
+                // about something else (body, scope), so the self-check is stated on its own (#77)
+                Text("Still on track?")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
                     Button {
                         finish(.onTrack)
