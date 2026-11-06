@@ -187,7 +187,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(disabled(stateLabel(state)))
         if app.checkInHeldForCall {
             menu.addItem(disabled("On a call: your check-in will show when it ends"))
-        } else if app.callDetector.isInCall {
+        } else if app.presence.isOnCall {
             menu.addItem(disabled("On a call: check-ins wait until it ends"))
         }
         if let last = app.lastCheckInDate {
@@ -242,7 +242,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             ("Check In in 10 Seconds", #selector(AppDelegate.debugCheckInSoon), false),
             ("Simulate Screensaver", #selector(AppDelegate.debugToggleScreensaver), appDelegate.debugScreensaverActive),
             ("Simulate Screen Lock", #selector(AppDelegate.debugToggleScreenLock), appDelegate.debugScreenLocked),
-            ("Simulate Focus", #selector(AppDelegate.debugToggleFocus), appDelegate.focusObserver.isFocusActive),
+            ("Simulate Focus", #selector(AppDelegate.debugToggleFocus), appDelegate.presence.isFocusActive),
             ("Reset First Launch", #selector(AppDelegate.debugResetFirstLaunch), false),
         ]
         submenu.addItem(disabled("Next check-in: \(appDelegate.nextCheckInDescription)"))

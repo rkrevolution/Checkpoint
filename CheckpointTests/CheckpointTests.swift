@@ -1091,3 +1091,71 @@ struct CheckInGateTests {
         #expect(!Gate.focusBlocks(isFocusActive: false, respectFocus: true))
     }
 }
+
+// MARK: - PresenceMonitor (#18)
+
+@MainActor
+struct PresenceMonitorTests {
+
+    final class Fake {
+        var time = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        var idle: TimeInterval = 0
+        var events: [String] = []
+    }
+
+    func makeMonitor(_ fake: Fake) -> PresenceMonitor {
+        let monitor = PresenceMonitor(now: { fake.time }, idleSeconds: { fake.idle })
+        monitor.onAwayBegan = { fake.events.append("away") }
+        monitor.onAwayEnded = { fake.events.append("back \(Int($0))") }
+        monitor.onIdleChanged = { idle, at in
+            fake.events.append("\(idle ? "idle" : "active") \(Int(fake.time.timeIntervalSince(at)))")
+        }
+        return monitor
+    }
+
+    @Test func overlappingAwayReasonsAreOneAbsence() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        monitor.beginAway(.screensaver)
+        fake.time += 60
+        monitor.beginAway(.screenLocked)       // still the same absence
+        monitor.endAway(.screensaver)          // locked: still away
+        #expect(monitor.isAway)
+        fake.time += 600
+        monitor.endAway(.screenLocked)
+        #expect(!monitor.isAway)
+        #expect(fake.events == ["away", "back 660"])
+    }
+
+    @Test func endingAReasonThatNeverBeganDoesNothing() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        monitor.endAway(.displaySleep)
+        #expect(fake.events.isEmpty)
+    }
+
+    @Test func idleIsBackdatedToTheLastInput() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        fake.idle = 200
+        monitor.checkIdle(isPaused: false)
+        #expect(!monitor.isIdle)
+        fake.idle = PresenceMonitor.idleThreshold + 30
+        monitor.checkIdle(isPaused: false)
+        #expect(monitor.isIdle)
+        fake.idle = 10                         // input resumed 10 s ago
+        monitor.checkIdle(isPaused: false)
+        #expect(fake.events == ["idle 330", "active 10"])
+    }
+
+    @Test func noIdleWhileAwayOrPaused() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        fake.idle = 3600
+        monitor.checkIdle(isPaused: true)
+        monitor.beginAway(.displaySleep)
+        monitor.checkIdle(isPaused: false)
+        #expect(!monitor.isIdle)
+        #expect(fake.events == ["away"])
+    }
+}

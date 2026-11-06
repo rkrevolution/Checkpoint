@@ -13,7 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     let scheduleManager = ScheduleManager()
     let questionBank = QuestionBank()
-    let focusObserver = FocusModeObserver()
+    let presence = PresenceMonitor()
     let responseLog = ResponseLog()
     let customStore = CustomQuestionStore()
     let objectiveTracker = ObjectiveTracker(
@@ -24,15 +24,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Set once launch setup is done, so the stall check doesn't fire before the timer starts
     private var launchFinished = false
     private var pauseHotKey: GlobalHotKey?
-    let callDetector = CallDetector()
     /// A check-in came due during a call; show it (quietly) when the call ends (#1)
     private(set) var checkInHeldForCall = false
-    /// True while no keyboard or mouse input for `idleThreshold` (counted as away for time on objective)
-    private var isIdle = false
-    /// When the current away period began, for the welcome-back prompt
-    private var awayStartedAt: Date?
     private static let welcomeBackAfter: TimeInterval = 60 * 60
-    private static let idleThreshold: TimeInterval = 5 * 60
     var checkpointTimer: CheckpointTimer?
     private var snoozeTimer: DispatchSourceTimer?
     private var windowController: CheckpointWindowController?
@@ -107,9 +101,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 1. Give QuestionBank access to custom questions
         questionBank.customStore = customStore
 
-        // 2. Wire Focus observer → AppState. Only enter focusModeActive when Focus actually holds
-        // check-ins back, so the menu bar never says "Focus" while they keep coming (#50).
-        focusObserver.onFocusChanged = { [weak self] isActive in
+        // 2. Presence: away (sleep, display, screensaver, lock), idle, calls and Focus.
+        // Only enter focusModeActive when Focus actually holds check-ins back, so the menu bar
+        // never says "Focus" while they keep coming (#50).
+        presence.onFocusChanged = { [weak self] isActive in
             guard let self else { return }
             let blocks = CheckInGate.focusBlocks(isFocusActive: isActive, respectFocus: self.settings.respectFocus)
             // Only move between idle and focusModeActive; never override a manual pause,
@@ -120,7 +115,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.appState.transition(to: .idle)
             }
         }
-        focusObserver.startObserving()
+        presence.onAwayBegan = { [weak self] in self?.awayBegan() }
+        presence.onAwayEnded = { [weak self] awayFor in self?.awayEnded(awayFor: awayFor) }
+        presence.onIdleChanged = { [weak self] isIdle, time in
+            if isIdle { self?.objectiveTracker.beginAway(at: time) } else { self?.objectiveTracker.endAway(at: time) }
+        }
+        // Hold check-ins while the microphone or camera is in use (#1)
+        presence.onCallChanged = { [weak self] inCall in self?.callChanged(inCall: inCall) }
+        presence.start()
 
         #if DEBUG
         // Make Debug copies unmistakable next to an installed release copy
@@ -134,8 +136,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sic.setup()
         statusItemController = sic
 
-        // 6. Pause while the user is away: system sleep, display sleep, screensaver, screen lock
-        observeAwayEvents()
         #if DEBUG
         observeDebugCommands()
         #endif
@@ -146,10 +146,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] in
             self?.togglePause()
         }
-
-        // Hold check-ins while the microphone or camera is in use (#1)
-        callDetector.onChange = { [weak self] inCall in self?.callChanged(inCall: inCall) }
-        callDetector.start()
 
         // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
@@ -263,41 +259,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Away (Sleep / Display Sleep / Screensaver / Lock)
 
-    private enum AwayReason: String {
-        case systemSleep, displaySleep, screensaver, screenLocked
-    }
-
-    /// Checkpoints never fire while any of these are active.
-    private var awayReasons = Set<AwayReason>()
-
-    private func observeAwayEvents() {
-        let events: [(NotificationCenter, String, AwayReason, Bool)] = [
-            (NSWorkspace.shared.notificationCenter, NSWorkspace.willSleepNotification.rawValue, .systemSleep, true),
-            (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification.rawValue, .systemSleep, false),
-            (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidSleepNotification.rawValue, .displaySleep, true),
-            (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidWakeNotification.rawValue, .displaySleep, false),
-            (DistributedNotificationCenter.default(), "com.apple.screensaver.didstart", .screensaver, true),
-            (DistributedNotificationCenter.default(), "com.apple.screensaver.didstop", .screensaver, false),
-            (DistributedNotificationCenter.default(), "com.apple.screenIsLocked", .screenLocked, true),
-            (DistributedNotificationCenter.default(), "com.apple.screenIsUnlocked", .screenLocked, false),
-        ]
-        for (center, name, reason, isStart) in events {
-            center.addObserver(forName: NSNotification.Name(name), object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    if isStart { self?.beginAway(reason) } else { self?.endAway(reason) }
-                }
-            }
-        }
-    }
-
-    private func beginAway(_ reason: AwayReason) {
-        let wasAway = !awayReasons.isEmpty
-        awayReasons.insert(reason)
+    /// Stops everything while the user is away, so nothing fires or sits over the lock screen.
+    private func awayBegan() {
         defer { updateFocusPill() }
-        if !wasAway { awayStartedAt = Date() }
-        log.notice("━━━ AWAY: \(reason.rawValue, privacy: .public) (reasons=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
-        guard !wasAway else { return }
-
         checkInHeldForCall = false
 
         objectiveTracker.beginAway()
@@ -318,24 +282,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func endAway(_ reason: AwayReason) {
-        guard awayReasons.remove(reason) != nil else { return }
-        log.notice("━━━ BACK: \(reason.rawValue, privacy: .public) (remaining=\(self.awayReasons.map(\.rawValue), privacy: .public)) ━━━")
-        guard awayReasons.isEmpty else { return }
-
+    /// Back at the Mac: a fresh interval, and "Welcome back" after a long break.
+    private func awayEnded(awayFor: TimeInterval) {
         // While paused the clock stays stopped until Resume
         if appState.state != .paused {
             objectiveTracker.endAway()
         }
 
         // Back after a long break: a welcome-back prompt to pick up (or change) the objective
-        if appState.state != .paused, let since = awayStartedAt,
-           Date().timeIntervalSince(since) >= Self.welcomeBackAfter,
+        if appState.state != .paused, awayFor >= Self.welcomeBackAfter,
            objectiveController == nil, welcomeController == nil {
-            log.notice("Back after \(Int(Date().timeIntervalSince(since) / 60)) min: welcome back")
+            log.notice("Back after \(Int(awayFor / 60)) min: welcome back")
             presentObjectivePrompt(greeting: "Welcome back") {}
         }
-        awayStartedAt = nil
         updateFocusPill()
 
         // If user had manually paused, respect that
@@ -365,12 +324,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func gateConditions() -> CheckInGate.Conditions {
         CheckInGate.Conditions(
             state: appState.state,
-            isAway: !awayReasons.isEmpty,
+            isAway: presence.isAway,
             scheduleAllows: scheduleManager.shouldFire(),
             withinActiveHours: scheduleManager.isWithinActiveHours(),
-            isFocusActive: focusObserver.isFocusActive,
+            isFocusActive: presence.isFocusActive,
             respectFocus: settings.respectFocus,
-            isOnCall: callDetector.isInCall,
+            isOnCall: presence.isOnCall,
             holdDuringCalls: settings.holdDuringCalls
         )
     }
@@ -389,7 +348,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             settle(to: .idle)
             fireCheckpoint(playSound: !afterCall)
         case .away:
-            log.notice("User away (\(self.awayReasons.map(\.rawValue), privacy: .public)), skipping")
+            log.notice("User away (\(self.presence.awayReasons.map(\.rawValue), privacy: .public)), skipping")
         case .paused, .inProgress:
             log.notice("Not idle, skipping. state=\(String(describing: self.appState.state))")
         case .schedule(let outsideActiveHours):
@@ -461,7 +420,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func presentCheckpoint(session original: CheckpointSession, snoozeCount: Int) {
         log.notice("presentCheckpoint: snoozeCount=\(snoozeCount)")
-        guard awayReasons.isEmpty else {
+        guard !presence.isAway else {
             log.notice("User away, not presenting")
             appState.transition(to: .idle)
             return
@@ -653,7 +612,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 // Before the heartbeat, which would move "last seen" past midnight
                 if self.objectiveTracker.endIfFromEarlierDay() { self.newDayStarted() }
                 self.objectiveTracker.heartbeat()
-                self.checkIdle()
+                self.presence.checkIdle(isPaused: self.appState.state == .paused)
             }
         }
         timer.tolerance = 10
@@ -667,35 +626,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// instead of showing yesterday's.
     private func newDayStarted() {
         resetDayCountersIfNeeded()
-        guard awayReasons.isEmpty, appState.state != .paused,
+        guard !presence.isAway, appState.state != .paused,
               objectiveController == nil, welcomeController == nil else { return }
         showObjectivePrompt()
-    }
-
-    /// Counts long stretches without keyboard or mouse input as away (backdated to the last input).
-    /// Only affects time on objective, not check-in scheduling.
-    private func checkIdle() {
-        // Sleep/lock/screensaver and pause already stop the clock
-        guard awayReasons.isEmpty, appState.state != .paused else { return }
-        // On a call you're working even without typing
-        if callDetector.isInCall {
-            if isIdle {
-                isIdle = false
-                objectiveTracker.endAway()
-            }
-            return
-        }
-        let anyInput = CGEventType(rawValue: ~0)!
-        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
-        if !isIdle, idle >= Self.idleThreshold {
-            isIdle = true
-            objectiveTracker.beginAway(at: Date().addingTimeInterval(-idle))
-            log.notice("Idle for \(Int(idle))s: not counting it as time on objective")
-        } else if isIdle, idle < Self.idleThreshold {
-            isIdle = false
-            objectiveTracker.endAway(at: Date().addingTimeInterval(-idle))
-            log.notice("Input resumed")
-        }
     }
 
     /// Clicking the Dock icon (or opening the app again from Finder or Spotlight) opens
@@ -712,7 +645,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// When the next check-in will appear, or why none is scheduled. For Diagnostics and the
     /// Debug menu only: showing it in everyday UI would let users brace for check-ins.
     var nextCheckInDescription: String {
-        if !awayReasons.isEmpty { return "none while away" }
+        if presence.isAway { return "none while away" }
         switch appState.state {
         case .paused: return "none while paused"
         case .presenting, .triggered: return "a check-in is showing now"
@@ -741,10 +674,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             ("Last check-in", lastCheckpointDate?.formatted(date: .omitted, time: .standard) ?? "none since launch"),
             ("State", String(describing: appState.state)),
             ("Stall check", stallReason ?? "OK"),
-            ("Away", awayReasons.isEmpty ? "no" : awayReasons.map(\.rawValue).sorted().joined(separator: ", ")),
-            ("Idle (5+ min)", isIdle ? "yes" : "no"),
-            ("On a call", callDetector.isInCall ? "yes" : "no"),
-            ("Focus detected", (focusObserver.isFocusActive ? "yes" : "no") + (respectFocus ? "" : " (not respected)")),
+            ("Away", presence.isAway ? presence.awayReasons.map(\.rawValue).sorted().joined(separator: ", ") : "no"),
+            ("Idle (5+ min)", presence.isIdle ? "yes" : "no"),
+            ("On a call", presence.isOnCall ? "yes" : "no"),
+            ("Focus detected", (presence.isFocusActive ? "yes" : "no") + (respectFocus ? "" : " (not respected)")),
             ("Start at Login", login),
             ("Screen capture", "Check-ins " + ScreenCapturePrivacy.statusText()),
             ("Interval", {
@@ -764,7 +697,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             enabled: settings.showFocusPill,
             hasObjective: objectiveTracker.current != nil,
             isPaused: appState.state == .paused,
-            isAway: !awayReasons.isEmpty
+            isAway: presence.isAway
         ))
     }
 
@@ -821,13 +754,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Stall detection (#25)
 
-    var isAway: Bool { !awayReasons.isEmpty }
     var lastCheckInDate: Date? { lastCheckpointDate }
 
     /// Why check-ins have stopped when they shouldn't have, or nil if all is well.
     /// A time-blind user won't notice missing check-ins, so the menu bar shows this.
     var stallReason: String? {
-        guard launchFinished, awayReasons.isEmpty, welcomeController == nil else { return nil }
+        guard launchFinished, !presence.isAway, welcomeController == nil else { return nil }
         let now = Date()
         switch appState.state {
         case .idle:
@@ -982,8 +914,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 #if DEBUG
 extension AppDelegate {
 
-    var debugScreensaverActive: Bool { awayReasons.contains(.screensaver) }
-    var debugScreenLocked: Bool { awayReasons.contains(.screenLocked) }
+    var debugScreensaverActive: Bool { presence.awayReasons.contains(.screensaver) }
+    var debugScreenLocked: Bool { presence.awayReasons.contains(.screenLocked) }
 
     /// Goes through the normal fire path (all schedule/Focus/away gates apply).
     @objc func debugCheckInSoon() {
@@ -994,15 +926,15 @@ extension AppDelegate {
     }
 
     @objc func debugToggleScreensaver() {
-        debugScreensaverActive ? endAway(.screensaver) : beginAway(.screensaver)
+        debugScreensaverActive ? presence.endAway(.screensaver) : presence.beginAway(.screensaver)
     }
 
     @objc func debugToggleScreenLock() {
-        debugScreenLocked ? endAway(.screenLocked) : beginAway(.screenLocked)
+        debugScreenLocked ? presence.endAway(.screenLocked) : presence.beginAway(.screenLocked)
     }
 
     @objc func debugToggleFocus() {
-        focusObserver.debugSetFocus(!focusObserver.isFocusActive)
+        presence.debugSetFocus(!presence.isFocusActive)
     }
 
     /// Commands a test script can send to a Debug build:
@@ -1035,14 +967,14 @@ extension AppDelegate {
         case "acknowledge": windowController?.debugAcknowledge()
         case "snooze": windowController?.debugSnooze()
         case "pause": pauseCheckpoints()
-        case "focusOn": focusObserver.debugSetFocus(true)
-        case "focusOff": focusObserver.debugSetFocus(false)
-        case "screensaverStart": beginAway(.screensaver)
-        case "screensaverStop": endAway(.screensaver)
-        case "lockStart": beginAway(.screenLocked)
-        case "lockStop": endAway(.screenLocked)
-        case "callStart": callDetector.debugOverride = true
-        case "callStop": callDetector.debugOverride = false
+        case "focusOn": presence.debugSetFocus(true)
+        case "focusOff": presence.debugSetFocus(false)
+        case "screensaverStart": presence.beginAway(.screensaver)
+        case "screensaverStop": presence.endAway(.screensaver)
+        case "lockStart": presence.beginAway(.screenLocked)
+        case "lockStop": presence.endAway(.screenLocked)
+        case "callStart": presence.debugSetCall(true)
+        case "callStop": presence.debugSetCall(false)
         case "timerFire": handleTimerFire()
         default: log.error("Unknown debug command: \(command, privacy: .public)")
         }
