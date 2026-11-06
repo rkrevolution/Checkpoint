@@ -280,15 +280,8 @@ struct GeneralSettingsView: View {
         let bank = QuestionBank()
         bank.customStore = customStore
         let questions = bank.selectQuestions(count: questionsPerCheckpoint)
-        let session = CheckpointSession(
-            id: UUID(),
-            timestamp: Date(),
-            intervalSeconds: intervalSeconds,
-            questionsShown: questions,
-            responses: questions.map { QuestionResponse(questionId: $0.id, text: "") },
-            outcome: .completed
-        )
-        let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
+        let session = CheckpointSession(questions: questions, intervalSeconds: intervalSeconds)
+        let objective = objectiveTracker.current?.objective ?? ""
         let wc = CheckpointWindowController(
             session: session,
             currentObjective: objective,

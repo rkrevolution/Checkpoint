@@ -110,41 +110,34 @@ Checkpoint runs as a Dock app with a menu bar status item. The Dock icon provide
 Checkpoint/
 ├── App/
 │   ├── CheckpointApp.swift          ← @main; Settings scene only (no WindowGroup)
-│   └── AppDelegate.swift            ← NSApplicationDelegate; owns all services
+│   ├── AppDelegate.swift            ← launch wiring and menu actions only
+│   ├── Diagnostics.swift            ← Settings › Diagnostics rows
+│   ├── DataLocation.swift           ← where user data lives (throwaway folder for e2e)
+│   └── DebugCommands.swift          ← Debug menu + e2e commands (#if DEBUG)
 ├── Model/
-│   ├── AppState.swift               ← ObservableObject; state machine
-│   ├── CheckpointSession.swift      ← Value type for one checkpoint event
-│   ├── Question.swift               ← Codable struct
-│   └── Category.swift               ← Codable struct
+│   ├── AppSettings.swift            ← every preference: one key, type and default
+│   ├── AppState.swift               ← check-in state machine
+│   ├── CheckpointSession.swift      ← one check-in (and its History entry)
+│   └── …                            ← questions, objective sessions, randomness
 ├── Services/
-│   ├── CheckpointTimer.swift        ← DispatchSourceTimer wrapper with jitter
-│   ├── QuestionBank.swift           ← Loads questions.json + custom; category-aware selection
-│   ├── CustomQuestionStore.swift    ← CRUD for user questions; persists to UserDefaults
-│   ├── NotificationManager.swift    ← UNUserNotificationCenter permission handling
-│   ├── ScheduleManager.swift        ← Active hours, weekday skips, Focus/DND checks
-│   ├── FocusModeObserver.swift      ← NSDistributedNotificationCenter for DND
-│   └── ResponseLog.swift            ← Appends to .jsonl; reads back for History
+│   ├── CheckInScheduler.swift       ← when check-ins happen: timer, snooze, calls, pause, stall
+│   ├── CheckInGate.swift            ← the one answer to "can a check-in show now?"
+│   ├── PresenceMonitor.swift        ← away (sleep, lock, screensaver), idle, calls, Focus
+│   ├── ObjectiveTracker.swift       ← the current objective and time on it
+│   ├── CheckpointTimer.swift        ← DispatchSourceTimer with randomness
+│   ├── ScheduleManager.swift        ← active hours, weekday skips
+│   ├── QuestionBank.swift           ← questions.json + custom; category-aware selection
+│   └── …                            ← stores (history, parked thoughts, custom questions)
 ├── UI/
-│   ├── CheckpointWindowController.swift  ← NSWindowController; modal NSWindow
-│   ├── CheckpointView.swift              ← SwiftUI view inside modal
-│   ├── ObjectivePromptController.swift   ← Objective prompt on launch/resume
-│   ├── DaySummaryController.swift        ← End-of-day summary window
-│   ├── TransitionToast.swift             ← Floating toast for objective changes
-│   ├── StatusItemController.swift        ← Menu bar icon + countdown + menu
-│   ├── WelcomeView.swift                 ← First-launch onboarding
-│   └── WelcomeWindowController.swift     ← Window for welcome flow
-├── Settings/
-│   ├── SettingsView.swift                ← TabView (General, Notifications, Questions, History)
-│   ├── GeneralSettingsView.swift
-│   ├── NotificationsSettingsView.swift
-│   ├── QuestionsSettingsView.swift
-│   └── HistorySettingsView.swift
-├── Resources/
-│   └── questions.json
-└── Assets.xcassets/
-    └── AppIcon.appiconset/       ← Static icon PNGs (16–1024px)
-CheckpointTests/
-└── CheckpointTests.swift         ← Swift Testing suite (29 tests)
+│   ├── WindowRouter.swift           ← opens every window, one of each
+│   ├── CheckpointWindowController.swift / CheckpointView.swift  ← the check-in card
+│   ├── ObjectivePromptController.swift  ← "What are you working on?"
+│   ├── TodayWindowController.swift  ← the day's time, answers, parked thoughts
+│   ├── StatusItemController.swift   ← menu bar item and menu
+│   └── …                            ← Welcome, focus strip, toast, How it works
+├── Settings/                        ← the Settings tabs
+└── Resources/questions.json
+CheckpointTests/CheckpointTests.swift  ← Swift Testing suite
 ```
 
 ### 2.4 State Machine
@@ -175,7 +168,7 @@ enum CheckpointState: Equatable {
 
 ### 2.6 Logging
 
-All key components use `os.log` with subsystem `com.rkrev.checkpoint`. Categories: `AppDelegate`, `CheckpointTimer`, `ScheduleManager`. Viewable in Console.app.
+All key components use `os.log` with subsystem `com.rkrev.checkpoint`. Category = the type name (e.g. `CheckInScheduler`, `PresenceMonitor`, `WindowRouter`). Viewable in Console.app.
 
 ---
 
@@ -518,7 +511,6 @@ Each checkpoint is recorded as JSON Lines at:
 Orange gradient rounded rectangle with a white sun (circle + 8 rays).
 
 - **Asset catalog:** `Assets.xcassets/AppIcon.appiconset` — static PNGs at all 10 required sizes (16px through 1024px). These are used by Finder, the Dock bar, Spotlight, and the exported `.app` bundle.
-- **Runtime:** Also set programmatically via `NSApp.applicationIconImage` in `AppDelegate.setDockIcon()` using the same design, so the icon appears correctly even during development without a clean build.
 
 ---
 
@@ -554,7 +546,7 @@ Orange gradient rounded rectangle with a white sun (circle + 8 rays).
 
 All key components log via `os.log` (subsystem: `com.rkrev.checkpoint`) at `notice` level so logs persist to disk.
 
-**Categories:** `AppDelegate`, `CheckpointTimer`, `ScheduleManager`
+**Categories:** the type name, e.g. `CheckInScheduler`, `PresenceMonitor`, `WindowRouter`, `CheckpointTimer`, `ScheduleManager`
 
 **What's logged:**
 - Timer scheduling: base interval, jitter applied, actual wait, exact fire time

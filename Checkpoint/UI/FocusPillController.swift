@@ -37,7 +37,33 @@ final class FocusPillController {
             }
     }
 
-    func setVisible(_ visible: Bool) {
+    private weak var appState: AppState?
+    private var isAway: () -> Bool = { false }
+    private var visibility: AnyCancellable?
+
+    /// Keeps the strip in step with its setting, the objective and pause. Away isn't published,
+    /// so call `refresh()` when it changes.
+    func follow(appState: AppState, isAway: @escaping () -> Bool) {
+        self.appState = appState
+        self.isAway = isAway
+        visibility = tracker.$current.map { $0 == nil }.removeDuplicates()
+            .combineLatest(appState.$state.map { $0 == .paused }.removeDuplicates(),
+                           UserDefaults.standard.publisher(for: \.showFocusPill).removeDuplicates())
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refresh() }
+    }
+
+    func refresh() {
+        guard let appState else { return }
+        setVisible(FocusPillPolicy.shouldShow(
+            enabled: AppSettings().showFocusPill,
+            hasObjective: tracker.current != nil,
+            isPaused: appState.state == .paused,
+            isAway: isAway()
+        ))
+    }
+
+    private func setVisible(_ visible: Bool) {
         if visible {
             show()
         } else {

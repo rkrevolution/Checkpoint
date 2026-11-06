@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import AppKit
+import ServiceManagement
 @testable import Checkpoint
 
 /// A throwaway preferences store: tests must never read or write the user's real settings.
@@ -1157,5 +1158,97 @@ struct PresenceMonitorTests {
         monitor.checkIdle(isPaused: false)
         #expect(!monitor.isIdle)
         #expect(fake.events == ["away"])
+    }
+}
+
+// MARK: - CheckInScheduler (#18)
+
+struct CheckInSchedulerTests {
+    let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    @Test func stallReasons() {
+        typealias S = CheckInScheduler
+        #expect(S.stallReason(state: .idle, nextFireDate: nil, isCardVisible: false, now: now) == "the timer isn't running")
+        #expect(S.stallReason(state: .idle, nextFireDate: now - 120, isCardVisible: false, now: now) == "a check-in is overdue")
+        #expect(S.stallReason(state: .idle, nextFireDate: now - 30, isCardVisible: false, now: now) == nil)  // grace
+        #expect(S.stallReason(state: .snoozed(until: now - 300, count: 1), nextFireDate: nil, isCardVisible: false, now: now)
+                == "a snoozed check-in didn't come back")
+        #expect(S.stallReason(state: .presenting, nextFireDate: nil, isCardVisible: false, now: now) == "the check-in card isn't on screen")
+        #expect(S.stallReason(state: .presenting, nextFireDate: nil, isCardVisible: true, now: now) == nil)
+        #expect(S.stallReason(state: .paused, nextFireDate: nil, isCardVisible: false, now: now) == nil)
+    }
+
+    @Test func dayCountStartsAgainOnANewDay() {
+        var day = DayCount()
+        day.recordCheckIn(at: now)
+        day.recordCheckIn(at: now + 60)
+        day.resetIfNewDay(now: now + 120)
+        #expect(day.count == 2)
+        day.resetIfNewDay(now: now + 2 * 86_400)
+        #expect(day.count == 0)
+    }
+
+    @Test func endOfActiveHoursSummaryOncePerStretchAndOnlyAfterACheckIn() {
+        var day = DayCount()
+        var due: [Bool] = []
+        due.append(day.endOfActiveHoursIsDue())   // no check-ins yet
+        day.recordCheckIn(at: now)
+        due.append(day.endOfActiveHoursIsDue())
+        due.append(day.endOfActiveHoursIsDue())   // only once
+        day.activeHoursStarted()
+        due.append(day.endOfActiveHoursIsDue())   // next stretch
+        #expect(due == [false, true, false, true])
+    }
+
+    @Test func sessionShownKeepsIdentityAndAnswer() {
+        var session = CheckpointSession(questions: [], at: now)
+        session.checkInResponse = .drifted
+        let shown = session.shown(at: now + 600, elapsed: 2700)
+        #expect(shown.id == session.id)
+        #expect(shown.timestamp == now + 600)
+        #expect(shown.intervalSeconds == 2700)
+        #expect(shown.checkInResponse == .drifted)
+    }
+
+    @Test func snoozedEntryHasItsOwnID() {
+        let session = CheckpointSession(questions: [], at: now, intervalSeconds: 900)
+        let entry = session.snoozedEntry(at: now + 5)
+        #expect(entry.id != session.id)
+        #expect(entry.outcome == .snoozed)
+        #expect(entry.intervalSeconds == 900)
+    }
+
+    @Test func loginItemText() {
+        #expect(Diagnostics.loginItemText(.enabled) == "on")
+        #expect(Diagnostics.loginItemText(.notRegistered) == "off")
+    }
+}
+
+// MARK: - ObjectiveTracker owns the current objective (#16 group B)
+
+extension ObjectiveTrackerTests {
+    @Test func lastSessionIsCurrentOrLastFinished() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume()
+        #expect(tracker.lastSession == nil)
+        tracker.objectiveChanged(to: "Report"); tracker.ifThenPlanChanged(to: "close tabs")
+        #expect(tracker.lastSession?.objective == "Report")
+        clock.advance(minutes: 30)
+        tracker.objectiveChanged(to: "")                 // stop tracking
+        #expect(tracker.current == nil)
+        #expect(tracker.lastSession?.objective == "Report")
+        #expect(tracker.lastSession?.ifThenPlan == "close tabs")
+    }
+
+    @Test func welcomeBackContext() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume()
+        #expect(tracker.welcomeBackContext() == nil)
+        tracker.objectiveChanged(to: "Report")
+        #expect(tracker.welcomeBackContext() == "Last: Report")   // under a minute
+        clock.advance(minutes: 80)
+        #expect(tracker.welcomeBackContext() == "You were on: Report · 1 h 20 min today")
     }
 }

@@ -37,7 +37,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateDisplay() }
             .store(in: &cancellables)
-        UserDefaults.standard.publisher(for: \.currentObjective)
+        appDelegate?.objectiveTracker.$current
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateDisplay() }
             .store(in: &cancellables)
@@ -105,7 +105,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if !showCountdown, let active = app.objectiveTracker.activeSeconds() {
             return DurationText.short(active)
         }
-        if showCountdown, let next = app.checkpointTimer?.nextFireDate {
+        if showCountdown, let next = app.scheduler.nextFireDate {
             return DurationText.short(max(60, next.timeIntervalSinceNow))
         }
         return ""
@@ -185,12 +185,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         // Check-in status
         // No "next check-in" time: unpredictable timing is the point
         menu.addItem(disabled(stateLabel(state)))
-        if app.checkInHeldForCall {
+        if app.scheduler.checkInHeldForCall {
             menu.addItem(disabled("On a call: your check-in will show when it ends"))
         } else if app.presence.isOnCall {
             menu.addItem(disabled("On a call: check-ins wait until it ends"))
         }
-        if let last = app.lastCheckInDate {
+        if let last = app.scheduler.day.lastCheckIn {
             menu.addItem(disabled("Last check-in: \(last.formatted(date: .omitted, time: .shortened))"))
         }
         switch state {
@@ -245,7 +245,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             ("Simulate Focus", #selector(AppDelegate.debugToggleFocus), appDelegate.presence.isFocusActive),
             ("Reset First Launch", #selector(AppDelegate.debugResetFirstLaunch), false),
         ]
-        submenu.addItem(disabled("Next check-in: \(appDelegate.nextCheckInDescription)"))
+        submenu.addItem(disabled("Next check-in: \(appDelegate.scheduler.nextCheckInDescription)"))
         submenu.addItem(.separator())
         for (title, selector, isOn) in items {
             let item = action(title, selector, appDelegate)

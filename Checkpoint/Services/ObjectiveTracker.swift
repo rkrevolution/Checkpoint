@@ -149,6 +149,22 @@ final class ObjectiveTracker: ObservableObject {
         ((try? sessionsFile.loadAll()) ?? []) + (current.map { [$0] } ?? [])
     }
 
+    /// The current session, or the last finished one: what the objective prompt is prefilled with.
+    var lastSession: ObjectiveSession? {
+        current ?? (try? sessionsFile.loadAll())?.last
+    }
+
+    /// "You were on: Report · 1 h 20 min today" (or "Last: Report"), for the welcome-back prompt.
+    func welcomeBackContext() -> String? {
+        guard let objective = lastSession?.objective, !objective.isEmpty else { return nil }
+        let today = ObjectiveTotals.byObjective(todaySessions(), at: now())
+            .first { ObjectiveName.same($0.objective, objective) }
+        if let today, today.seconds >= 60 {
+            return "You were on: \(objective) · \(DurationText.long(today.seconds)) today"
+        }
+        return "Last: \(objective)"
+    }
+
     /// Distinct objectives from the last week, most recent first (for one-tap suggestions).
     func recentObjectives(limit: Int = 5) -> [String] {
         let cutoff = now().addingTimeInterval(-7 * 24 * 3600)
