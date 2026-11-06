@@ -1026,3 +1026,68 @@ struct AppSettingsTests {
         #expect(s.goals == ["Ship 1.0", "Run"])
     }
 }
+
+// MARK: - CheckInGate (#17)
+
+struct CheckInGateTests {
+    typealias Gate = CheckInGate
+    static let snoozed = CheckpointState.snoozed(until: Date(), count: 1)
+
+    /// Every block reason, for each kind of request. Nil = shows now.
+    @Test(arguments: [
+        // Nothing in the way
+        (Gate.Request.scheduled, Gate.Conditions(state: .idle), nil),
+        (.snoozeReturn, Gate.Conditions(state: snoozed), nil),
+        (.manual, Gate.Conditions(state: .idle), nil),
+        // Away beats everything, even a manual request
+        (.scheduled, Gate.Conditions(state: .idle, isAway: true), .away),
+        (.snoozeReturn, Gate.Conditions(state: snoozed, isAway: true), .away),
+        (.manual, Gate.Conditions(state: .idle, isAway: true), .away),
+        // Paused: only Resume ends it
+        (.scheduled, Gate.Conditions(state: .paused), .paused),
+        (.manual, Gate.Conditions(state: .paused), .paused),
+        (.scheduled, Gate.Conditions(state: .paused, isFocusActive: true), .paused),
+        // Another check-in open or snoozed
+        (.scheduled, Gate.Conditions(state: .presenting), .inProgress),
+        (.scheduled, Gate.Conditions(state: .triggered), .inProgress),
+        (.scheduled, Gate.Conditions(state: snoozed), .inProgress),
+        (.manual, Gate.Conditions(state: .presenting), .inProgress),
+        (.snoozeReturn, Gate.Conditions(state: .idle), .inProgress),
+        // Manual replaces a snooze
+        (.manual, Gate.Conditions(state: snoozed), nil),
+        // Schedule
+        (.scheduled, Gate.Conditions(state: .idle, scheduleAllows: false, withinActiveHours: false), .schedule(outsideActiveHours: true)),
+        (.scheduled, Gate.Conditions(state: .idle, scheduleAllows: false), .schedule(outsideActiveHours: false)),
+        (.snoozeReturn, Gate.Conditions(state: snoozed, scheduleAllows: false), .schedule(outsideActiveHours: false)),
+        (.manual, Gate.Conditions(state: .idle, scheduleAllows: false, withinActiveHours: false), nil),
+        // Waiting states are re-decided, not stuck
+        (.scheduled, Gate.Conditions(state: .outsideHours), nil),
+        (.scheduled, Gate.Conditions(state: .focusModeActive), nil),
+        // Focus, only if respected
+        (.scheduled, Gate.Conditions(state: .idle, isFocusActive: true), .focus),
+        (.scheduled, Gate.Conditions(state: .idle, isFocusActive: true, respectFocus: false), nil),
+        (.snoozeReturn, Gate.Conditions(state: snoozed, isFocusActive: true), .focus),
+        (.manual, Gate.Conditions(state: .idle, isFocusActive: true), nil),
+        // Calls wait, only if holding is on
+        (.scheduled, Gate.Conditions(state: .idle, isOnCall: true), .call),
+        (.scheduled, Gate.Conditions(state: .idle, isOnCall: true, holdDuringCalls: false), nil),
+        (.snoozeReturn, Gate.Conditions(state: snoozed, isOnCall: true), .call),
+        (.manual, Gate.Conditions(state: .idle, isOnCall: true), nil),
+    ] as [(Gate.Request, Gate.Conditions, Gate.Block?)])
+    func decides(request: Gate.Request, conditions: Gate.Conditions, expected: Gate.Block?) {
+        #expect(Gate.block(request, conditions) == expected)
+    }
+
+    @Test func onlyCallsWait() {
+        #expect(Gate.Block.call.waits)
+        #expect(!Gate.Block.focus.waits)
+        #expect(!Gate.Block.schedule(outsideActiveHours: true).waits)
+    }
+
+    /// #50: the menu bar says "Focus" only when Focus actually holds check-ins back
+    @Test func focusBlocksOnlyWhenRespected() {
+        #expect(Gate.focusBlocks(isFocusActive: true, respectFocus: true))
+        #expect(!Gate.focusBlocks(isFocusActive: true, respectFocus: false))
+        #expect(!Gate.focusBlocks(isFocusActive: false, respectFocus: true))
+    }
+}
