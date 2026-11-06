@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import AppKit
+import ServiceManagement
 @testable import Checkpoint
 
 /// A throwaway preferences store: tests must never read or write the user's real settings.
@@ -1089,5 +1090,165 @@ struct CheckInGateTests {
         #expect(Gate.focusBlocks(isFocusActive: true, respectFocus: true))
         #expect(!Gate.focusBlocks(isFocusActive: true, respectFocus: false))
         #expect(!Gate.focusBlocks(isFocusActive: false, respectFocus: true))
+    }
+}
+
+// MARK: - PresenceMonitor (#18)
+
+@MainActor
+struct PresenceMonitorTests {
+
+    final class Fake {
+        var time = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        var idle: TimeInterval = 0
+        var events: [String] = []
+    }
+
+    func makeMonitor(_ fake: Fake) -> PresenceMonitor {
+        let monitor = PresenceMonitor(now: { fake.time }, idleSeconds: { fake.idle })
+        monitor.onAwayBegan = { fake.events.append("away") }
+        monitor.onAwayEnded = { fake.events.append("back \(Int($0))") }
+        monitor.onIdleChanged = { idle, at in
+            fake.events.append("\(idle ? "idle" : "active") \(Int(fake.time.timeIntervalSince(at)))")
+        }
+        return monitor
+    }
+
+    @Test func overlappingAwayReasonsAreOneAbsence() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        monitor.beginAway(.screensaver)
+        fake.time += 60
+        monitor.beginAway(.screenLocked)       // still the same absence
+        monitor.endAway(.screensaver)          // locked: still away
+        #expect(monitor.isAway)
+        fake.time += 600
+        monitor.endAway(.screenLocked)
+        #expect(!monitor.isAway)
+        #expect(fake.events == ["away", "back 660"])
+    }
+
+    @Test func endingAReasonThatNeverBeganDoesNothing() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        monitor.endAway(.displaySleep)
+        #expect(fake.events.isEmpty)
+    }
+
+    @Test func idleIsBackdatedToTheLastInput() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        fake.idle = 200
+        monitor.checkIdle(isPaused: false)
+        #expect(!monitor.isIdle)
+        fake.idle = PresenceMonitor.idleThreshold + 30
+        monitor.checkIdle(isPaused: false)
+        #expect(monitor.isIdle)
+        fake.idle = 10                         // input resumed 10 s ago
+        monitor.checkIdle(isPaused: false)
+        #expect(fake.events == ["idle 330", "active 10"])
+    }
+
+    @Test func noIdleWhileAwayOrPaused() {
+        let fake = Fake()
+        let monitor = makeMonitor(fake)
+        fake.idle = 3600
+        monitor.checkIdle(isPaused: true)
+        monitor.beginAway(.displaySleep)
+        monitor.checkIdle(isPaused: false)
+        #expect(!monitor.isIdle)
+        #expect(fake.events == ["away"])
+    }
+}
+
+// MARK: - CheckInScheduler (#18)
+
+struct CheckInSchedulerTests {
+    let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    @Test func stallReasons() {
+        typealias S = CheckInScheduler
+        #expect(S.stallReason(state: .idle, nextFireDate: nil, isCardVisible: false, now: now) == "the timer isn't running")
+        #expect(S.stallReason(state: .idle, nextFireDate: now - 120, isCardVisible: false, now: now) == "a check-in is overdue")
+        #expect(S.stallReason(state: .idle, nextFireDate: now - 30, isCardVisible: false, now: now) == nil)  // grace
+        #expect(S.stallReason(state: .snoozed(until: now - 300, count: 1), nextFireDate: nil, isCardVisible: false, now: now)
+                == "a snoozed check-in didn't come back")
+        #expect(S.stallReason(state: .presenting, nextFireDate: nil, isCardVisible: false, now: now) == "the check-in card isn't on screen")
+        #expect(S.stallReason(state: .presenting, nextFireDate: nil, isCardVisible: true, now: now) == nil)
+        #expect(S.stallReason(state: .paused, nextFireDate: nil, isCardVisible: false, now: now) == nil)
+    }
+
+    @Test func dayCountStartsAgainOnANewDay() {
+        var day = DayCount()
+        day.recordCheckIn(at: now)
+        day.recordCheckIn(at: now + 60)
+        day.resetIfNewDay(now: now + 120)
+        #expect(day.count == 2)
+        day.resetIfNewDay(now: now + 2 * 86_400)
+        #expect(day.count == 0)
+    }
+
+    @Test func endOfActiveHoursSummaryOncePerStretchAndOnlyAfterACheckIn() {
+        var day = DayCount()
+        var due: [Bool] = []
+        due.append(day.endOfActiveHoursIsDue())   // no check-ins yet
+        day.recordCheckIn(at: now)
+        due.append(day.endOfActiveHoursIsDue())
+        due.append(day.endOfActiveHoursIsDue())   // only once
+        day.activeHoursStarted()
+        due.append(day.endOfActiveHoursIsDue())   // next stretch
+        #expect(due == [false, true, false, true])
+    }
+
+    @Test func sessionShownKeepsIdentityAndAnswer() {
+        var session = CheckpointSession(questions: [], at: now)
+        session.checkInResponse = .drifted
+        let shown = session.shown(at: now + 600, elapsed: 2700)
+        #expect(shown.id == session.id)
+        #expect(shown.timestamp == now + 600)
+        #expect(shown.intervalSeconds == 2700)
+        #expect(shown.checkInResponse == .drifted)
+    }
+
+    @Test func snoozedEntryHasItsOwnID() {
+        let session = CheckpointSession(questions: [], at: now, intervalSeconds: 900)
+        let entry = session.snoozedEntry(at: now + 5)
+        #expect(entry.id != session.id)
+        #expect(entry.outcome == .snoozed)
+        #expect(entry.intervalSeconds == 900)
+    }
+
+    @Test func loginItemText() {
+        #expect(Diagnostics.loginItemText(.enabled) == "on")
+        #expect(Diagnostics.loginItemText(.notRegistered) == "off")
+    }
+}
+
+// MARK: - ObjectiveTracker owns the current objective (#16 group B)
+
+extension ObjectiveTrackerTests {
+    @Test func lastSessionIsCurrentOrLastFinished() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume()
+        #expect(tracker.lastSession == nil)
+        tracker.objectiveChanged(to: "Report"); tracker.ifThenPlanChanged(to: "close tabs")
+        #expect(tracker.lastSession?.objective == "Report")
+        clock.advance(minutes: 30)
+        tracker.objectiveChanged(to: "")                 // stop tracking
+        #expect(tracker.current == nil)
+        #expect(tracker.lastSession?.objective == "Report")
+        #expect(tracker.lastSession?.ifThenPlan == "close tabs")
+    }
+
+    @Test func welcomeBackContext() {
+        let clock = Clock(morning())
+        let (tracker, _, _) = makeTracker(clock: clock)
+        tracker.resume()
+        #expect(tracker.welcomeBackContext() == nil)
+        tracker.objectiveChanged(to: "Report")
+        #expect(tracker.welcomeBackContext() == "Last: Report")   // under a minute
+        clock.advance(minutes: 80)
+        #expect(tracker.welcomeBackContext() == "You were on: Report · 1 h 20 min today")
     }
 }

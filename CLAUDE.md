@@ -20,9 +20,10 @@ xcodebuild test -project Checkpoint.xcodeproj -scheme Checkpoint -destination 'p
 
 ## Layout
 
-- `Checkpoint/App` — `AppDelegate` owns the services, the scheduling gates, snooze and away handling (for now; see "Planned restructure" below).
-- `Checkpoint/Services` — timer, schedule rules, question bank, history log, Focus observer.
-- `Checkpoint/UI` — checkpoint card and window controllers, menu bar item, prompts.
+- `Checkpoint/App` — `AppDelegate` (launch wiring and menu actions only), `Diagnostics`, `DataLocation` (where user data lives, e2e isolation), `DebugCommands` (Debug builds only).
+- `Checkpoint/Model` — value types: `AppSettings` (every preference), `AppState` (the check-in state machine), sessions, questions.
+- `Checkpoint/Services` — `CheckInScheduler` (when check-ins happen: timer, snooze, held for a call, pause, stall), `CheckInGate` (can one show now?), `PresenceMonitor` (away, idle, calls, Focus), `ObjectiveTracker` (owns the current objective and time on it), schedule rules, question bank, stores.
+- `Checkpoint/UI` — `WindowRouter` (opens every window), the check-in card, prompts, Today, menu bar item.
 - `Checkpoint/Settings` — the Preferences tabs.
 - `Checkpoint/Resources/questions.json` — built-in questions; the source of truth for categories.
 - `docs/panels.md` — why each panel exists, what it shows, when it appears; `docs/ux-flow.md` — user flow and state diagrams (Mermaid) plus the UX review. Update both when a panel or the user loop changes. `docs/research-basis.md` — evidence behind design choices.
@@ -52,12 +53,11 @@ Every change follows these; reviews check them.
 - Small, focused types and functions; comments explain *why*, not *what*.
 - New logic comes with tests; CI must pass (lint is tracked in #72).
 
-## Planned restructure
+## Architecture
 
-`AppDelegate.swift` (~1,150 lines) is due to be restructured, behaviour-neutral, in the **Code cleanup** milestone: plan [#68](https://github.com/rkrevolution/Checkpoint/issues/68), in order **#16** typed settings (`AppSettings`, done) → **#17** one `CheckInGate` for "can a check-in show now?" (done) → **#18** split into `CheckInScheduler`, `PresenceMonitor`, `WindowRouter` and `Diagnostics`. Each issue has a detailed plan and acceptance criteria.
-
-Until then:
-- **Don't grow `AppDelegate`.** Put new logic in its own type (with tests) and only wire it up in `AppDelegate`.
+The **Code cleanup** milestone ([#68](https://github.com/rkrevolution/Checkpoint/issues/68): #16 → #17 → #18) gave each concern one owner. Keep it that way:
+- **`AppDelegate` stays wiring.** New logic goes in the type that owns it (or a new focused type, with tests); `AppDelegate` only connects callbacks.
+- **One owner per kind of state**: check-in timing → `CheckInScheduler`; presence → `PresenceMonitor`; windows → `WindowRouter`; what you're working on → `ObjectiveTracker` (never a preference); preferences → `AppSettings`.
 - **Don't add "not now" checks** in individual paths; add them to `CheckInGate` with a test row.
 - New settings: add the key, default and typed property to `AppSettings` only.
 
@@ -65,7 +65,7 @@ Until then:
 
 **Behaviour on macOS**
 - Never show anything over the screensaver or lock screen. Checkpoint windows use `.statusBar` level or lower, never `.screenSaver`.
-- While the user is away (system or display sleep, screensaver, screen lock) nothing fires and nothing plays a sound; any open card and its overlays are dismissed. New away-like states go through `beginAway` / `endAway` in `AppDelegate`.
+- While the user is away (system or display sleep, screensaver, screen lock) nothing fires and nothing plays a sound; any open card and its overlays are dismissed. New away-like states are an `AwayReason` in `PresenceMonitor`.
 - Silent failure is the worst failure for this app: a time-blind user won't notice check-ins stopped. Prefer visible state and logging over quietly doing nothing.
 
 **Code**

@@ -6,16 +6,18 @@ import SwiftUI
 final class ObjectivePromptController: NSWindowController {
 
     private var onDone: (() -> Void)?
-    /// Called with the estimate in minutes (nil = none) just before `onDone`, when the user presses Start.
-    var onEstimate: ((Int?) -> Void)?
 
     /// - Parameter recentObjectives: one-tap suggestions, so returning to an earlier task is quick
     ///   and its name stays consistent (time per objective only adds up when names match).
     /// - Parameters:
     ///   - greeting: "Good morning" / "Welcome back" when re-entering the loop; nil for a plain change
     ///   - context: e.g. "You were on: Report · 1 h 20 min today"
-    init(recentObjectives: [String] = [], initialEstimate: Int? = nil,
-         greeting: String? = nil, context: String? = nil, onDone: @escaping () -> Void) {
+    ///   - objective, ifThenPlan: prefilled (the current or last objective)
+    ///   - onStart: Start was pressed: objective (may be empty: keep the current one), if-then
+    ///     plan (nil = none) and estimate in minutes (nil = none). Runs before `onDone`.
+    init(objective: String, ifThenPlan: String?, recentObjectives: [String] = [],
+         initialEstimate: Int? = nil, greeting: String? = nil, context: String? = nil,
+         onStart: @escaping (String, String?, Int?) -> Void, onDone: @escaping () -> Void) {
         self.onDone = onDone
 
         let window = NSWindow(
@@ -30,26 +32,15 @@ final class ObjectivePromptController: NSWindowController {
 
         super.init(window: window)
 
-        let existing = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
-        let existingPlan = UserDefaults.standard.string(forKey: "currentIfThenPlan") ?? ""
-
         let view = ObjectivePromptView(
-            initialText: existing,
-            initialPlan: existingPlan,
-            recentObjectives: recentObjectives.filter { !ObjectiveName.same($0, existing) },
+            initialText: objective,
+            initialPlan: ifThenPlan ?? "",
+            recentObjectives: recentObjectives.filter { !ObjectiveName.same($0, objective) },
             initialEstimate: initialEstimate,
             greeting: greeting,
             context: context,
             onSave: { [weak self] text, plan, estimate in
-                if !text.isEmpty {
-                    UserDefaults.standard.set(text, forKey: "currentObjective")
-                }
-                if plan.isEmpty {
-                    UserDefaults.standard.removeObject(forKey: "currentIfThenPlan")
-                } else {
-                    UserDefaults.standard.set(plan, forKey: "currentIfThenPlan")
-                }
-                self?.onEstimate?(estimate)
+                onStart(text, plan.isEmpty ? nil : plan, estimate)
                 self?.window?.close()
                 self?.onDone?()
                 self?.onDone = nil
