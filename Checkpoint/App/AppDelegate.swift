@@ -263,9 +263,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         oc.show()
     }
 
-    private func startTimer() {
+    /// The check-in interval setting, or the default if it's unset.
+    private var checkInInterval: TimeInterval {
         let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
-        let effectiveInterval = interval > 0 ? interval : 2700
+        return interval > 0 ? interval : 2700
+    }
+
+    /// A check-in just ended (answered or dropped). The next one is a full interval from now,
+    /// so time spent snoozed, held for a call or with the card open doesn't shorten the gap (#52).
+    private func startNextInterval(after reason: String) {
+        log.notice("Check-in ended (\(reason, privacy: .public)): next interval starts now")
+        checkpointTimer?.restart(interval: checkInInterval)
+    }
+
+    private func startTimer() {
+        let effectiveInterval = checkInInterval
         log.notice("━━━ TIMER STARTING ━━━")
         log.notice("  Base interval: \(Int(effectiveInterval))s (\(Int(effectiveInterval)/60)min)")
         log.notice("  Randomness: \(Randomness.current().label(for: effectiveInterval), privacy: .public)")
@@ -370,11 +382,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Restart fresh
         appState.transition(to: .idle)
-        let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
-        let effectiveInterval = interval > 0 ? interval : 2700
-        checkpointTimer?.restart(interval: effectiveInterval)
+        checkpointTimer?.restart(interval: checkInInterval)
         elapsedSince = Date()
-        log.notice("  Timer restarted with interval \(Int(effectiveInterval))s")
+        log.notice("  Timer restarted with interval \(Int(self.checkInInterval))s")
     }
 
     // MARK: - Timer Fire
@@ -507,11 +517,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         appState.transition(to: .presenting)
 
-        let interval = UserDefaults.standard.integer(forKey: "checkpointInterval")
-
         // Show the current time and real elapsed time, also when re-presenting after a snooze
         let now = Date()
-        let elapsed = elapsedSince.map { Int(now.timeIntervalSince($0)) } ?? (interval > 0 ? interval : 2700)
+        let elapsed = elapsedSince.map { Int(now.timeIntervalSince($0)) } ?? Int(checkInInterval)
         let session = CheckpointSession(
             id: original.id,
             timestamp: now,
@@ -521,7 +529,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             outcome: original.outcome
         )
 
-        let objective = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
+        // Only show an objective that's being timed; otherwise the card asks what you're on (#75)
+        let objective = objectiveTracker.current?.objective ?? ""
         let maxSnoozes = UserDefaults.standard.integer(forKey: "maxSnoozesPerCheckpoint")
 
         let wc = CheckpointWindowController(
@@ -541,11 +550,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.elapsedSince = Date()
                 // Save updated objective if user changed it, show transition toast
                 if let updated = updatedObjective, !updated.isEmpty {
-                    let old = UserDefaults.standard.string(forKey: "currentObjective") ?? ""
                     UserDefaults.standard.set(updated, forKey: "currentObjective")
-                    if old != updated {
-                        self?.transitionToast.show(from: old, to: updated)
-                    }
+                    // Start timing now: re-picking the same text as a stale objective leaves the
+                    // setting unchanged, so its observer wouldn't fire (#75)
+                    self?.objectiveTracker.objectiveChanged(to: updated)
+                    self?.transitionToast.show(from: objective, to: updated)
                 }
                 if let thought = completed.parkedThought {
                     self?.parkedThoughts.park(thought, objective: self?.objectiveTracker.current?.objective)
@@ -554,6 +563,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     try? self?.responseLog.append(completed)
                 }
                 self?.appState.transition(to: .idle)
+                self?.startNextInterval(after: "answered")
             },
             onSnooze: { [weak self] in
                 let formatter = DateFormatter()
@@ -604,6 +614,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if maxSnoozes > 0, newCount >= maxSnoozes,
            (UserDefaults.standard.string(forKey: "afterMaxSnoozeAction") ?? "autoDismiss") == "autoDismiss" {
             appState.transition(to: .idle)
+            startNextInterval(after: "snooze limit reached")
             return
         }
 
@@ -624,6 +635,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard self.scheduleManager.shouldFire(), !focusBlocks else {
                 log.notice("Snoozed checkpoint dropped: schedule or Focus no longer allows it")
                 self.appState.transition(to: .idle)
+                self.startNextInterval(after: "snoozed check-in dropped")
                 return
             }
             if self.holdsForCall {
@@ -695,13 +707,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // the idle check excludes time at the desk with no input before the display sleeps
         let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.objectiveTracker.heartbeat()
-                self?.checkIdle()
+                guard let self else { return }
+                // Before the heartbeat, which would move "last seen" past midnight
+                if self.objectiveTracker.endIfFromEarlierDay() { self.newDayStarted() }
+                self.objectiveTracker.heartbeat()
+                self.checkIdle()
             }
         }
         timer.tolerance = 10
         RunLoop.main.add(timer, forMode: .common)
         heartbeatTimer = timer
+    }
+
+    /// The app ran past midnight with a session open (#51): yesterday's session has ended, so ask
+    /// what today is about. Not while away or paused (Resume and a long absence bring up
+    /// "Welcome back"); either way, until an objective is set the next card asks for one
+    /// instead of showing yesterday's.
+    private func newDayStarted() {
+        resetDayCountersIfNeeded()
+        guard awayReasons.isEmpty, appState.state != .paused,
+              objectiveController == nil, welcomeController == nil else { return }
+        showObjectivePrompt()
     }
 
     /// Counts long stretches without keyboard or mouse input as away (backdated to the last input).
@@ -894,11 +920,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         snoozeTimer?.cancel()
         snoozeTimer = nil
         appState.transition(to: .idle)
-        let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
         if checkpointTimer == nil {
             startTimer()
         } else {
-            checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
+            checkpointTimer?.restart(interval: checkInInterval)
             elapsedSince = Date()
         }
         statusItemController?.updateDisplay()
@@ -1010,11 +1035,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func resumeCheckpoints() {
         // Re-prompt for objective on resume, then restart timer
         presentObjectivePrompt(greeting: "Welcome back") { [weak self] in
-            let interval = TimeInterval(UserDefaults.standard.integer(forKey: "checkpointInterval"))
-            self?.checkpointTimer?.restart(interval: interval > 0 ? interval : 2700)
-            self?.elapsedSince = Date()
-            self?.objectiveTracker.endAway()  // the clock starts again
-            self?.appState.transition(to: .idle)
+            guard let self else { return }
+            self.checkpointTimer?.restart(interval: self.checkInInterval)
+            self.elapsedSince = Date()
+            self.objectiveTracker.endAway()  // the clock starts again
+            self.appState.transition(to: .idle)
         }
     }
 

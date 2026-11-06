@@ -660,6 +660,40 @@ struct ObjectiveTrackerTests {
         #expect(oldID != nil)
     }
 
+    /// #51: the app keeps running past midnight with a session open
+    @Test func sessionEndsAtMidnightWhenAppRunsOvernight() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: morning())!
+        let clock = Clock(yesterday)
+        let (tracker, _, url) = makeTracker(clock: clock)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
+        #expect(tracker.endIfFromEarlierDay() == false)  // same day: nothing to do
+
+        // Heartbeats all night (app running, Mac awake), then the first check after midnight
+        let midnight = Calendar.current.startOfDay(for: morning())
+        clock.time = midnight.addingTimeInterval(-30); tracker.heartbeat()
+        clock.time = midnight.addingTimeInterval(30)
+        #expect(tracker.endIfFromEarlierDay() == true)
+        #expect(tracker.current == nil)
+
+        // Yesterday's session ends by midnight, not stretched into today
+        let ended = try #require(try JSONLinesFile<ObjectiveSession>(url: url).loadAll().first)
+        #expect(ended.endedAt == midnight.addingTimeInterval(-30))
+        #expect(tracker.todaySessions().isEmpty)
+        #expect(tracker.endIfFromEarlierDay() == false)  // only once
+    }
+
+    @Test func overnightSessionNeverEndsAfterMidnight() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: morning())!
+        let clock = Clock(yesterday)
+        let (tracker, _, url) = makeTracker(clock: clock)
+        tracker.resume(); tracker.objectiveChanged(to: "Write report")
+        let midnight = Calendar.current.startOfDay(for: morning())
+        clock.time = midnight.addingTimeInterval(120); tracker.heartbeat()  // last seen after midnight
+        #expect(tracker.endIfFromEarlierDay() == true)
+        let ended = try #require(try JSONLinesFile<ObjectiveSession>(url: url).loadAll().first)
+        #expect(ended.endedAt == midnight)
+    }
+
     @Test func recentObjectivesAreDistinctAndNewestFirst() {
         let clock = Clock(morning())
         let (tracker, _, _) = makeTracker(clock: clock)

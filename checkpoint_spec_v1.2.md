@@ -46,6 +46,48 @@ Checkpoint is a **tap on the shoulder**, not a journal. The user reads one quest
 
 ---
 
+## 1.6 The Core Loop
+
+Everything in Checkpoint serves one loop against time blindness. A feature that doesn't strengthen a step of this loop, or adds a step to the check-in card, doesn't belong in the app.
+
+```
+ ┌─► 1. Say what you're working on ──► 2. Work with time visible ──► 3. Unpredictable check-in ─┐
+ │      objective (+ optional             menu bar: time on the            the real time, time on   │
+ │      estimate, if-then plan)           objective; no countdown          the objective, one        │
+ │                                                                         question, then "Still on  │
+ │                                                                         track?" in one tap         │
+ └──────────── 4. Re-orient and go back ◄──────────────────────────────────────────────────────────┘
+                 On track · Drifted (see your plan, park the thought) · Switched (pick what you're on now)
+
+ 5. See your day: time per objective, estimate vs actual, check-in answers, parked thoughts
+```
+
+Rules that keep the loop honest:
+- **Time counts only while you're on a stated objective and present**: not before Start, not while paused, away or idle. The card only shows an objective that is being timed; otherwise it asks what you're working on.
+- **Check-ins are unpredictable** (randomness around the interval) and **evenly spaced**: the next interval starts when a check-in ends (answered or dropped), so time snoozed or with the card open never shortens the next gap.
+- **The answer is always about the objective.** The grounding question is for reflection (time, priorities, body); the one-tap answer is to "Still on track?".
+- **A new day is a new loop**: at midnight (or the first launch of the day) yesterday's session ends and the app asks what today is about.
+- **Silent failure is the worst failure.** A time-blind user won't notice check-ins stopped, so every stall is visible in the menu bar with a way to restart.
+- **Nothing over the lock screen or screensaver, and nothing while away.**
+
+The detailed flow and state diagrams are in `docs/ux-flow.md`; why each panel exists is in `docs/panels.md`.
+
+---
+
+## 1.7 Engineering Principles
+
+Checkpoint is meant to stay small, easy to maintain and safe to extend. The architecture follows from that:
+
+- **DRY: one source of truth.** One definition per setting (key, type and default), per rule (e.g. one gate for "can a check-in show now?"), per user-facing string used in several places, and per formatting helper. Logic is never copy-pasted across paths; it's extracted, named and tested once.
+- **Small, focused types with one job each.** The app delegate only wires services together; scheduling, presence (away, idle, calls, Focus), window routing and diagnostics each live in their own type. User data has one owning store per kind with create, read, update and delete.
+- **State is explicit.** Check-in state changes only through one state machine, and timers follow the state rather than running alongside it.
+- **Testable by design.** Clock, settings and file locations are injected, so the loop's rules are unit-tested without the real app or the user's real data.
+- **Scales by addition, not by special cases.** A new away-like state, gate or setting plugs into the existing type for it instead of adding checks to individual paths.
+
+The current code doesn't meet all of this yet. The remaining work is planned, behaviour-neutral, in the **Code cleanup** milestone (#68: #16 typed settings → #17 one check-in gate and state-driven timers → #18 split the app delegate), with consistent stores in #71. `CLAUDE.md` holds the required engineering standards.
+
+---
+
 ## 2. Architecture & Technical Approach
 
 ### 2.1 App Lifecycle
@@ -141,7 +183,7 @@ All key components use `os.log` with subsystem `com.rkrev.checkpoint`. Categorie
 
 ### 3.1 Trigger Flow
 
-1. `DispatchSourceTimer` fires on interval (default 45 min) **with random jitter of ±10 minutes** around the configured interval. Jitter prevents habituation — if the user knows exactly when the checkpoint comes, they learn to brace for it and dismiss reflexively. The jitter range is configurable (0–15 min). Timer is non-repeating; it re-schedules after each fire with fresh jitter.
+1. `DispatchSourceTimer` fires on interval (default 45 min) **with randomness around the configured interval** (Off / Low ±7% / Medium ±15% / High ±25%; default Medium, about ±7 min at 45 min). Randomness prevents habituation — if the user knows exactly when the checkpoint comes, they learn to brace for it and dismiss reflexively. Timer is non-repeating with fresh randomness each time, and **the next interval starts when a check-in ends** (answered, dropped after the snooze limit, or dropped by a gate), so snoozes and an open card don't shorten the next gap.
 2. `ScheduleManager.shouldFire()` checks enabled flag, active hours (if toggled on), weekday skips
 3. If rejected: stay idle (or transition to `.outsideHours` / `.focusModeActive`)
 4. If approved: build `CheckpointSession`, transition to `.triggered`, play sound, present modal
@@ -150,7 +192,7 @@ All key components use `os.log` with subsystem `com.rkrev.checkpoint`. Categorie
 
 | Property | Value |
 |---|---|
-| Window Level | `.screenSaver` — above everything, including full-screen apps |
+| Window Level | `.statusBar` or lower — above normal windows, **never** above the screensaver or lock screen |
 | Size | 420 × 380 pt (fixed) |
 | Style Mask | `.titled` only — **no close button** (user must engage) |
 | Background | `NSVisualEffectView` (`.hudWindow` material) |
@@ -186,11 +228,15 @@ The modal is intentionally intrusive. This is the core design principle — it m
 
 **Current Objective:** Displayed prominently with an orange target icon and semibold text. Acts as a goal reminder and a resumption cue after the interruption (Altmann & Trafton, 2002). It is not yet an implementation intention, which is a specific if-then plan (d = 0.65 across 94 tests, Gollwitzer & Sheeran, 2006; also effective for response inhibition in children with ADHD, Gawrilow & Gollwitzer, 2008); see #32 for adding one. User can tap "update" to edit inline without dismissing the modal.
 
-**Buttons:**
-- **"Got it"** (Return key) — acknowledges and dismisses. Logs as `completed`.
+**Answer:** under the question, **"Still on track?"**, answered in one tap. The question is for reflection and may be about time, priorities or the body; the answer is always about the objective.
+- **"On track"** (Return key) — back to work. Logs as `completed` with the answer.
+- **"Drifted"** — shows the if-then plan and an optional field to park the distraction, then back to work.
+- **"Switched"** — pick a recent objective or type a new one; time is tracked on it from here.
 - **"Not now (Nm)"** (Escape key) — snoozes. Logs as `snoozed`.
 
-**No skip button, no text fields.** This is a tap on the shoulder, not a form.
+With no objective being timed, the card asks "What are you working on?" with recent objectives instead.
+
+**No skip button, no required text.** This is a tap on the shoulder, not a form.
 
 **Breathing cue:** Optional pulsing orange circle (4-second inhale/exhale cycle). Off by default. Encourages a slow breath during frustration. Slow breathing raises vagally mediated heart rate variability (Laborde et al., 2022), but this small optional cue itself is untested.
 

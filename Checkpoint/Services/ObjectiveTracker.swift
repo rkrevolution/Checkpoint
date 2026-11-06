@@ -44,21 +44,32 @@ final class ObjectiveTracker: ObservableObject {
     /// a session starts only when the user confirms what they're working on.
     func resume() {
         let t = now()
-        let lastSeen = defaults.object(forKey: Self.lastSeenKey) as? Date
-
-        if var session = current {
-            if !calendar.isDate(session.startedAt, inSameDayAs: t) {
-                // Don't stretch yesterday's session over the night, or carry it into today
-                end(at: lastSeen ?? session.startedAt)
-            } else if let lastSeen, t > lastSeen {
-                // The app wasn't running between lastSeen and now: count it as away
-                session.awaySeconds += t.timeIntervalSince(lastSeen)
-                session.awaySince = nil
-                current = session
-                save()
-            }
+        if !endIfFromEarlierDay(), var session = current, let lastSeen, t > lastSeen {
+            // The app wasn't running between lastSeen and now: count it as away
+            session.awaySeconds += t.timeIntervalSince(lastSeen)
+            session.awaySince = nil
+            current = session
+            save()
         }
         heartbeat()
+    }
+
+    /// Ends a session that started on an earlier day, at the last sign of life but no later
+    /// than midnight, so yesterday's session is never stretched over the night or into today.
+    /// Call at launch and periodically, since the app can run overnight (#51). Returns true
+    /// if a session was ended: a new day needs a new "What are you working on?".
+    @discardableResult
+    func endIfFromEarlierDay() -> Bool {
+        guard let session = current else { return false }
+        let t = now()
+        guard !calendar.isDate(session.startedAt, inSameDayAs: t) else { return false }
+        end(at: min(lastSeen ?? session.startedAt, calendar.startOfDay(for: t)))
+        log.notice("New day: ended the session from an earlier day")
+        return true
+    }
+
+    private var lastSeen: Date? {
+        defaults.object(forKey: Self.lastSeenKey) as? Date
     }
 
     /// Records that the app is alive, so downtime can be excluded after a relaunch.

@@ -14,11 +14,11 @@ flowchart TD
     Today -- no --> Objective["'What are you working on?'<br/>recent objectives · optional if-then plan"]
     Objective -- "Start / Skip / close" --> Work
 
-    Work["Working<br/>menu bar: time on objective, or ⚠ if check-ins stopped"] -->|"interval ± jitter"| Gates{"Away, paused, Focus,<br/>outside active hours?"}
+    Work["Working<br/>menu bar: time on objective, or ⚠ if check-ins stopped"] -->|"interval ± jitter,<br/>counted from the last check-in's end"| Gates{"Away, paused, Focus,<br/>outside active hours?"}
     Gates -- yes --> Work
     Gates -- no --> Card
 
-    Card["Checkpoint card<br/>time · on X for 2 h 40 min<br/>one question · 'Right now I'm…'<br/>buttons enabled after 1.5 s"]
+    Card["Checkpoint card<br/>time · on X for 2 h 40 min<br/>one question · 'Still on track?'<br/>buttons enabled after 1.5 s"]
     Card -- "On track" --> Work
     Card -- "Drifted" --> Drift["Your if-then plan<br/>park the distraction"] --> Work
     Card -- "Switched" --> Switch["Pick a recent objective<br/>or type a new one"] --> Toast["Toast: old → new objective"] --> Work
@@ -55,6 +55,7 @@ flowchart TD
     Work -->|"away 1 h+ (lunch, locked)"| Back["'Welcome back'<br/>You were on: X · 1 h 20 min today"]
     Back -- "Start (continue or change)" --> Work
 
+    Work -->|"midnight passes, app still running"| Prompt
     Work -->|"something got stuck"| Stalled["Menu bar: Check-ins stopped<br/>with the reason"]
     Stalled -->|"menu: Restart Check-ins"| Work
 
@@ -74,7 +75,7 @@ stateDiagram-v2
     idle --> outsideHours: active hours end
     outsideHours --> idle: active hours begin
     triggered --> presenting
-    presenting --> idle: Got it
+    presenting --> idle: answered (next interval starts now)
     presenting --> snoozed: Not now
     snoozed --> presenting: snooze ends
     snoozed --> idle: limit reached (auto-dismiss) / Focus or schedule blocks
