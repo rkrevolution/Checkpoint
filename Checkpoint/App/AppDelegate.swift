@@ -122,8 +122,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         focusObserver.startObserving()
 
-        // 3. Set dock icon programmatically (sun)
-        setDockIcon()
         #if DEBUG
         // Make Debug copies unmistakable next to an installed release copy
         NSApp.dockTile.badgeLabel = "DEV"
@@ -155,12 +153,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 7. Observe UserDefaults changes to restart timer when interval changes
         observeSettingsChanges()
-
-        // 8. Observe AppState changes
-        appState.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in self?.syncDockMenu() }
-            .store(in: &cancellables)
 
         // 9. First launch: show welcome. Otherwise: start timer immediately.
         let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
@@ -611,8 +603,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showToday(headline: "End of active hours")
     }
 
-    // MARK: - Settings Observation
-
     // MARK: - Today window
 
     @objc func showHowItWorks() {
@@ -887,57 +877,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
     }
 
-    // MARK: - Dock Icon
-
-    private func setDockIcon() {
-        let size = NSSize(width: 512, height: 512)
-        let image = NSImage(size: size, flipped: false) { rect in
-            // Orange gradient background
-            let gradient = NSGradient(
-                starting: NSColor(red: 1.0, green: 0.72, blue: 0.2, alpha: 1.0),
-                ending: NSColor(red: 1.0, green: 0.55, blue: 0.1, alpha: 1.0)
-            )
-            let bgPath = NSBezierPath(roundedRect: rect.insetBy(dx: 16, dy: 16), xRadius: 96, yRadius: 96)
-            gradient?.draw(in: bgPath, angle: -45)
-
-            // White sun — center circle
-            let center = NSPoint(x: rect.midX, y: rect.midY)
-            let sunRadius: CGFloat = 80
-            let sunPath = NSBezierPath(ovalIn: NSRect(
-                x: center.x - sunRadius, y: center.y - sunRadius,
-                width: sunRadius * 2, height: sunRadius * 2
-            ))
-            NSColor.white.setFill()
-            sunPath.fill()
-
-            // Rays
-            NSColor.white.setStroke()
-            let rayLength: CGFloat = 50
-            let rayGap: CGFloat = 30
-            let rayStart = sunRadius + rayGap
-            for i in 0..<8 {
-                let angle = CGFloat(i) * .pi / 4
-                let ray = NSBezierPath()
-                ray.lineWidth = 28
-                ray.lineCapStyle = .round
-                ray.move(to: NSPoint(
-                    x: center.x + cos(angle) * rayStart,
-                    y: center.y + sin(angle) * rayStart
-                ))
-                ray.line(to: NSPoint(
-                    x: center.x + cos(angle) * (rayStart + rayLength),
-                    y: center.y + sin(angle) * (rayStart + rayLength)
-                ))
-                ray.stroke()
-            }
-            return true
-        }
-        NSApp.applicationIconImage = image
-    }
-
     // MARK: - Dock Menu
-
-    private func syncDockMenu() {}
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
@@ -1114,25 +1054,3 @@ extension AppDelegate {
     }
 }
 #endif
-
-// MARK: - UserDefaults KVO Extension
-
-/// Observable through Combine (`publisher(for:)`). KVO on `UserDefaults` only works when the
-/// property name is the stored key, so each name must match its `AppSettings.Key` raw value.
-extension UserDefaults {
-    @objc dynamic var currentObjective: String? {
-        return string(forKey: "currentObjective")
-    }
-
-    @objc dynamic var currentIfThenPlan: String? {
-        return string(forKey: "currentIfThenPlan")
-    }
-
-    @objc dynamic var showFocusPill: Bool {
-        return AppSettings(self).showFocusPill
-    }
-
-    @objc dynamic var checkpointInterval: Int {
-        return integer(forKey: AppSettings.Key.checkInInterval.rawValue)
-    }
-}

@@ -22,10 +22,6 @@ final class ScheduleManager {
             log.notice("shouldFire=false: outside active hours")
             return false
         }
-        guard !isBlackout(at: date) else {
-            log.notice("shouldFire=false: blackout")
-            return false
-        }
         guard !isSkippedWeekday(at: date) else {
             log.notice("shouldFire=false: skipped weekday")
             return false
@@ -55,11 +51,6 @@ final class ScheduleManager {
         }
         log.notice("isWithinActiveHours: hour=\(hour), start=\(start), end=\(end), result=\(result)")
         return result
-    }
-
-    func isBlackout(at date: Date = Date()) -> Bool {
-        // Blackout windows will be fully implemented in Phase 4 (Settings)
-        return false
     }
 
     private func isSkippedWeekday(at date: Date = Date()) -> Bool {
