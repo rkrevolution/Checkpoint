@@ -442,39 +442,20 @@ struct CheckpointTimerTests {
 
 // MARK: - IntervalPicker Logic Tests
 
-struct IntervalPickerTests {
+struct IntervalOptionsTests {
 
-    private let intervalOptions = [1, 2, 5, 10, 15, 20, 25, 30, 45, 60, 90, 120]
-
-    @Test func snapToNearestOption() {
-        // Simulate the onAppear snap logic from GeneralSettingsView
-        let staleMinutes = 35
-        let nearest = intervalOptions.min(by: { abs($0 - staleMinutes) < abs($1 - staleMinutes) })!
-        #expect(nearest == 30)
+    @Test func unlistedValuesShowAsTheNearestOption() {
+        #expect(IntervalOptions.nearest(to: 35) == 30)
+        #expect(IntervalOptions.nearest(to: 7) == 5)
+        #expect(IntervalOptions.nearest(to: 45) == 45)
     }
 
-    @Test func snapToNearestOptionEdgeCase() {
-        let staleMinutes = 7
-        let nearest = intervalOptions.min(by: { abs($0 - staleMinutes) < abs($1 - staleMinutes) })!
-        #expect(nearest == 5)
-    }
-
-    @Test func intervalLabelFormatting() {
-        #expect(intervalLabel(1) == "1 min")
-        #expect(intervalLabel(30) == "30 min")
-        #expect(intervalLabel(60) == "1 hour")
-        #expect(intervalLabel(90) == "1.5 hours")
-        #expect(intervalLabel(120) == "2 hours")
-    }
-
-    private func intervalLabel(_ mins: Int) -> String {
-        switch mins {
-        case 1: return "1 min"
-        case 60: return "1 hour"
-        case 90: return "1.5 hours"
-        case 120: return "2 hours"
-        default: return "\(mins) min"
-        }
+    @Test func labels() {
+        #expect(IntervalOptions.label(1) == "1 min")
+        #expect(IntervalOptions.label(30) == "30 min")
+        #expect(IntervalOptions.label(60) == "1 hour")
+        #expect(IntervalOptions.label(90) == "1.5 hours")
+        #expect(IntervalOptions.label(120) == "2 hours")
     }
 }
 
@@ -1250,5 +1231,29 @@ extension ObjectiveTrackerTests {
         #expect(tracker.welcomeBackContext() == "Last: Report")   // under a minute
         clock.advance(minutes: 80)
         #expect(tracker.welcomeBackContext() == "You were on: Report · 1 h 20 min today")
+    }
+}
+
+// MARK: - Settings sidebar (#82)
+
+struct SettingsPageTests {
+    @Test func everyPageAppearsInTheSidebarExactlyOnce() {
+        let listed = SettingsPage.groups.flatMap(\.pages)
+        #expect(listed.count == SettingsPage.allCases.count)
+        #expect(Set(listed) == Set(SettingsPage.allCases))
+    }
+
+    /// HIG: short labels, at most two levels (groups hold pages, pages hold nothing)
+    @Test func groupHeadersAreShortAndUnique() {
+        let headers = SettingsPage.groups.compactMap(\.header)
+        #expect(Set(headers).count == headers.count)
+        #expect(headers.allSatisfy { $0.count <= 12 })
+    }
+}
+
+extension SettingsPageTests {
+    /// HIG: short sidebar labels; long ones get cut off at the default sidebar width
+    @Test func pageTitlesFitTheSidebar() {
+        #expect(SettingsPage.allCases.allSatisfy { $0.title.count <= 14 })
     }
 }

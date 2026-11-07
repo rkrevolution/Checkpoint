@@ -59,7 +59,7 @@ flowchart TD
     Work -->|"something got stuck"| Stalled["Menu bar: Check-ins stopped<br/>with the reason"]
     Stalled -->|"menu: Restart Check-ins"| Work
 
-    Work -.->|"Dock icon"| Settings["Settings<br/>Now section"]
+    Work -.->|"Dock icon"| Settings["Settings<br/>Now page"]
     Work -.->|"menu: Today…"| Today["Today window"]
     Work -.->|"menu: How Checkpoint Works…"| Help["How it works panel"]
 ```

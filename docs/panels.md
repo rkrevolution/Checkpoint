@@ -107,39 +107,19 @@ flowchart LR
 - **Shows:** the four steps, the automatic behaviors (calls, away, ⌃⌥⌘P, the stall warning), the version.
 
 ## Settings (Dock icon, or menu › Settings…)
-Clicking the Dock icon opens Settings: it's the app's main window.
+Clicking the Dock icon opens Settings: it's the app's main window. A sidebar of short pages (#82, following Apple's HIG for sidebars) instead of tabs, so nothing is a long scroll; it opens on the page you viewed last. Each setting has a one-line "what and why" under it.
 
-### General
-| Section | Why it exists |
-|---|---|
-| **Now** | See and change what the app thinks you're doing, any time |
-| **Goals** | Up to three lines, shown in full on the check-in card and the objective prompt, and kept in the menu and Today. Goals only help when visible at the moment you decide. |
-| **Start at Login** | The prosthetic only works if it's always running. Also mentions ⌃⌥⌘P. |
-| **Enable Checkpoints** | Master switch. Known issue: overlaps with Pause. |
-| **Check-ins: Every, Randomness** | How often, and how much the timing varies (Off / Low / Medium / High, labelled with the real range at the current interval, e.g. "Medium (±2 min)"). Directly under Now because it's the main setting. |
-| **Active Hours, Check in on** | Keep it quiet outside work hours and on days off |
-| **Menu Bar** | Time on objective (default) or a countdown |
-| **Questions per Check-in** | 1–3 grounding questions. Known issue: more than one adds load. |
-| **Preview Checkpoint** | See the card with current settings |
-| **Diagnostics** (collapsed) | For checking that things work: next and last check-in, state, away/idle/call/Focus, Start at Login status, screen capture, version, data folder; **Copy** for bug reports. Collapsed because knowing when check-ins come makes them less effective. |
-| **Version, How Checkpoint Works…** | Which build you're on, plus the help panel |
-
-### Check-ins
-| Section | Why it exists |
-|---|---|
-| **Sound** | An audible cue helps break hyperfocus. Skipped for check-ins held during a call. |
-| **Snooze** | "Not now" is honest about its length and limited, so it can't become permanent avoidance |
-| **Attention** | Full-screen dim for stronger interruption; optional breathing circle |
-| **Calls** | "Wait until calls end": while the mic or camera is in use, a due check-in waits and appears without sound after the call (not paused or skipped). |
-| **Screen Sharing and Screenshots** | On by default: the card and focus strip stay out of screen shares, recordings and screenshots, so your objective and goals stay private. macOS can't hide a window from sharing but not screenshots, so turn it off to take a screenshot. The card's footer and Diagnostics show when it's off; `-hideFromScreenCapture NO` turns it off for one run. |
-| **Focus** | Respect macOS Focus. Known issue: detection may not work ([#2](https://github.com/rkrevolution/Checkpoint/issues/2)). |
-
-### Questions
-- **Why:** the grounding questions should fit you. You can turn built-in ones off and add your own by category. The wording avoids shame.
-
-### History
-- **Why:** a record of every check-in and answer (On track / Drifted / Switched / snoozed, parked thoughts), so patterns are visible over weeks.
-- **Shows:** a filter, export to JSON or CSV, and Clear.
+| Page | What's on it | Why it exists |
+|---|---|---|
+| **Now** | Current objective, time on it, if-then plan; Set/Change; **Goals** (up to three) | See and change what the app thinks you're doing. Goals only help when visible at the moment you decide, so they're shown in full on the card and prompt too. |
+| **Check-ins** › **Check-ins** | Enable Checkpoints; **Every** and **Randomness** (Off / Low / Medium / High, labelled with the real range, e.g. "Medium (±2 min)"); questions per check-in; **Preview Checkpoint** | How often, and how unpredictable: you can't brace for a check-in you can't predict. One question is usually best. Enable overlaps with Pause (known issue). |
+| **Check-ins** › **Schedule** | Active hours; days to check in | Quiet outside work hours and on days off. When active hours end, Today opens with a summary. |
+| **Check-ins** › **Interruptions** | Sound; full-screen dim; breathing circle; **Not now** (length, how many, what happens after the last); **Calls** (wait until they end); **Focus** | How a check-in breaks through, and when it waits. "Not now" is honest and limited so it can't become permanent avoidance; the next check-in always comes a full interval after one ends. Known issue: Focus detection may not work (#2). |
+| **Display** › **Menu Bar** | Menu bar shows time on objective (default) or a countdown; focus strip on/off | Keeps time visible between check-ins without interrupting. A countdown makes check-ins predictable, so it's not the default. |
+| **Display** › **Privacy** | Hide check-ins from screen sharing and screenshots (on by default); where your data lives | Your objective and goals stay private on calls. macOS can't hide a window from sharing but not screenshots, so turn it off to take one; `-hideFromScreenCapture NO` turns it off for one run. |
+| **Your Data** › **Questions** | Categories and questions; turn built-in ones off, add your own | The grounding questions should fit you. The wording avoids shame. |
+| **Your Data** › **History** | Every check-in and answer (On track / Drifted / Switched / snoozed, parked thoughts); filter, export JSON or CSV, Clear | Patterns become visible over weeks. |
+| **App** › **About** | Version, How Checkpoint Works…, **Start at Login**, **Diagnostics** (collapsed) | Check-ins only happen while the app runs. Diagnostics shows next/last check-in, state, away/idle/call/Focus, login, screen capture, data folder, with Copy for bug reports; collapsed because knowing when check-ins come makes them less effective. |
 
 ## Automatic behavior (no panel)
 | Behavior | Why |
